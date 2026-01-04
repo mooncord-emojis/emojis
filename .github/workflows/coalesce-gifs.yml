@@ -75,13 +75,14 @@ jobs:
               echo "  Animated WebP ($frame_count frames), converting to GIF..."
               gif="${webp%.*}.gif"
 
-              if ffmpeg -y -i "$webp" "$gif" 2>/dev/null; then
+              ffmpeg -y -i "$webp" -f gif -loop 0 "$gif" 2>&1 | tail -20
+              if [ -f "$gif" ]; then
                 echo "  Converted to: $gif"
                 rm "$webp"
                 echo "  Removed original WebP"
                 echo "$gif" >> /tmp/converted_gifs.txt
               else
-                echo "  Failed to convert"
+                echo "  Failed to convert (no output file created)"
               fi
             else
               # Static WebP -> PNG
