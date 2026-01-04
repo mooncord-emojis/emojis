@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp
+        run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp imagemagick
 
       - name: Get changed files
         id: changed-files
@@ -75,14 +75,20 @@ jobs:
               echo "  Animated WebP ($frame_count frames), converting to GIF..."
               gif="${webp%.*}.gif"
 
-              ffmpeg -y -i "$webp" -f gif -loop 0 "$gif" 2>&1 | tail -20
-              if [ -f "$gif" ]; then
-                echo "  Converted to: $gif"
-                rm "$webp"
-                echo "  Removed original WebP"
-                echo "$gif" >> /tmp/converted_gifs.txt
+              # Use ImageMagick - ffmpeg doesn't support animated WebP
+              if convert "$webp" "$gif" 2>&1; then
+                # Verify the output file has content
+                if [ -f "$gif" ] && [ "$(stat -c%s "$gif")" -gt 100 ]; then
+                  echo "  Converted to: $gif"
+                  rm "$webp"
+                  echo "  Removed original WebP"
+                  echo "$gif" >> /tmp/converted_gifs.txt
+                else
+                  echo "  Failed to convert (output file empty or missing)"
+                  rm -f "$gif"
+                fi
               else
-                echo "  Failed to convert (no output file created)"
+                echo "  Failed to convert"
               fi
             else
               # Static WebP -> PNG
