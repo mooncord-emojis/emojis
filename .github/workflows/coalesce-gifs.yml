@@ -76,7 +76,8 @@ jobs:
               gif="${webp%.*}.gif"
 
               # Use ImageMagick - ffmpeg doesn't support animated WebP
-              if convert "$webp" "$gif" 2>&1; then
+              # -coalesce ensures complete frames, -dither improves color quality
+              if convert "$webp" -coalesce -dither FloydSteinberg -colors 256 -layers OptimizeTransparency "$gif" 2>&1; then
                 # Verify the output file has content
                 if [ -f "$gif" ] && [ "$(stat -c%s "$gif")" -gt 100 ]; then
                   echo "  Converted to: $gif"
