@@ -1,0 +1,18 @@
+{
+  "name": "mooncord-emoji-api",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for Mooncord emoji submissions",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "jose": "^5.2.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.22.0"
+  }
+}

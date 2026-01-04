@@ -1,0 +1,15 @@
+name = "mooncord-emoji-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Secrets (set via wrangler secret put VARIABLE_NAME):
+# - DISCORD_CLIENT_ID
+# - DISCORD_CLIENT_SECRET
+# - DISCORD_SERVER_ID (193277318494420992)
+# - GITHUB_TOKEN
+# - JWT_SECRET
+# - FRONTEND_URL
+
+[vars]
+# Non-secret environment variables can go here
+# FRONTEND_URL = "https://cman85.github.io/mooncord-emojis"
