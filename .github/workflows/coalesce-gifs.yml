@@ -1,0 +1,98 @@
+name: Coalesce GIF Frames
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ratbranch
+    paths:
+      - '**.gif'
+      - '**.GIF'
+
+jobs:
+  coalesce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+
+      - name: Get changed GIF files
+        id: changed-files
+        run: |
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            # First push to branch - get all GIFs in the commit
+            changed_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
+          else
+            # Normal push - get changed files between commits
+            changed_gifs=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -iE '\.gif$' || true)
+          fi
+          echo "Changed GIFs:"
+          echo "$changed_gifs"
+          echo "changed_gifs<<EOF" >> $GITHUB_OUTPUT
+          echo "$changed_gifs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Coalesce GIF files
+        run: |
+          changed_gifs="${{ steps.changed-files.outputs.changed_gifs }}"
+
+          if [ -z "$changed_gifs" ]; then
+            echo "No GIF files changed in this push"
+            exit 0
+          fi
+
+          echo "$changed_gifs" | while read gif; do
+            # Skip empty lines
+            [ -z "$gif" ] && continue
+
+            # Check if file exists (might have been deleted)
+            [ ! -f "$gif" ] && echo "Skipping deleted file: $gif" && continue
+
+            echo "Processing: $gif"
+
+            # Check if GIF has multiple frames
+            frame_count=$(identify -format "%n\n" "$gif" 2>/dev/null | head -1)
+
+            if [ "$frame_count" -gt 1 ] 2>/dev/null; then
+              echo "  Found $frame_count frames, coalescing..."
+
+              # Create temp file
+              temp_file="${gif}.tmp"
+
+              # Coalesce the GIF (combines partial frames into complete frames)
+              convert "$gif" -coalesce "$temp_file"
+
+              if [ -f "$temp_file" ]; then
+                mv "$temp_file" "$gif"
+                echo "  Coalesced successfully"
+              else
+                echo "  Failed to coalesce"
+              fi
+            else
+              echo "  Single frame or not animated, skipping"
+            fi
+          done
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit changes
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A
+          git commit -m "Coalesce animated GIF frames"
+          git push
