@@ -1,5 +1,5 @@
 // Configuration - UPDATE THIS after deploying the Cloudflare Worker
-const API_BASE_URL = 'https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev';
+const API_BASE_URL = 'https://mooncord-emojis.workers.dev';
 
 // DOM Elements
 const loginSection = document.getElementById('loginSection');
