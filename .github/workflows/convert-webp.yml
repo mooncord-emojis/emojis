@@ -105,9 +105,16 @@ jobs:
             frame_count=$(gifsicle --info "$gif" 2>/dev/null | grep -c "image #" || echo "1")
 
             if [ "$frame_count" -gt 1 ] 2>/dev/null; then
+              # First pass: ImageMagick coalesce
+              if convert "$gif" -coalesce "${gif}.tmp" 2>/dev/null; then
+                mv "${gif}.tmp" "$gif"
+                echo "  ImageMagick coalesce done"
+              fi
+
+              # Second pass: gifsicle unoptimize
               if gifsicle --unoptimize "$gif" -o "${gif}.tmp" 2>/dev/null; then
                 mv "${gif}.tmp" "$gif"
-                echo "  Coalesced successfully"
+                echo "  Gifsicle unoptimize done"
 
                 file_size=$(stat -c%s "$gif")
                 max_size=10485760
