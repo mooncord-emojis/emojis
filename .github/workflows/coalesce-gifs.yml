@@ -8,8 +8,6 @@ on:
     paths:
       - '**.gif'
       - '**.GIF'
-      - '**.webp'
-      - '**.WEBP'
 
 jobs:
   coalesce:
@@ -22,141 +20,52 @@ jobs:
           fetch-depth: 0
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp imagemagick
+        run: sudo apt-get update && sudo apt-get install -y gifsicle
 
-      - name: Get changed files
+      - name: Get changed GIF files
         id: changed-files
         run: |
           if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            # First push to branch - get all relevant files in the commit
             changed_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
-            changed_webps=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.webp$' || true)
           else
-            # Normal push - get changed files between commits
             changed_gifs=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -iE '\.gif$' || true)
-            changed_webps=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -iE '\.webp$' || true)
           fi
           echo "Changed GIFs:"
           echo "$changed_gifs"
-          echo "Changed WebPs:"
-          echo "$changed_webps"
           echo "changed_gifs<<EOF" >> $GITHUB_OUTPUT
           echo "$changed_gifs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          echo "changed_webps<<EOF" >> $GITHUB_OUTPUT
-          echo "$changed_webps" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Convert WebP files
-        id: convert-webp
-        run: |
-          changed_webps="${{ steps.changed-files.outputs.changed_webps }}"
-
-          if [ -z "$changed_webps" ]; then
-            echo "No WebP files changed in this push"
-            echo "converted_gifs=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          echo "$changed_webps" | while read webp; do
-            # Skip empty lines
-            [ -z "$webp" ] && continue
-
-            # Check if file exists (might have been deleted)
-            [ ! -f "$webp" ] && echo "Skipping deleted file: $webp" && continue
-
-            echo "Processing: $webp"
-
-            # Check if WebP is animated using webpmux
-            frame_count=$(webpmux -info "$webp" 2>/dev/null | grep -c "^[[:space:]]*[0-9]*:" || echo "1")
-
-            if [ "$frame_count" -gt 1 ] 2>/dev/null; then
-              # Animated WebP -> GIF
-              echo "  Animated WebP ($frame_count frames), converting to GIF..."
-              gif="${webp%.*}.gif"
-
-              # Use ImageMagick - ffmpeg doesn't support animated WebP
-              # -coalesce ensures complete frames, -dither improves color quality
-              if convert "$webp" -coalesce -dither FloydSteinberg -colors 256 -layers OptimizeTransparency "$gif" 2>&1; then
-                # Verify the output file has content
-                if [ -f "$gif" ] && [ "$(stat -c%s "$gif")" -gt 100 ]; then
-                  echo "  Converted to: $gif"
-                  rm "$webp"
-                  echo "  Removed original WebP"
-                  echo "$gif" >> /tmp/converted_gifs.txt
-                else
-                  echo "  Failed to convert (output file empty or missing)"
-                  rm -f "$gif"
-                fi
-              else
-                echo "  Failed to convert"
-              fi
-            else
-              # Static WebP -> PNG
-              echo "  Static WebP, converting to PNG..."
-              png="${webp%.*}.png"
-
-              if ffmpeg -y -i "$webp" "$png" 2>/dev/null; then
-                echo "  Converted to: $png"
-                rm "$webp"
-                echo "  Removed original WebP"
-              else
-                echo "  Failed to convert"
-              fi
-            fi
-          done
-
-          # Output converted GIFs for the next step
-          if [ -f /tmp/converted_gifs.txt ]; then
-            converted=$(cat /tmp/converted_gifs.txt)
-            echo "converted_gifs<<EOF" >> $GITHUB_OUTPUT
-            echo "$converted" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "converted_gifs=" >> $GITHUB_OUTPUT
-          fi
 
       - name: Coalesce GIF files
         run: |
           changed_gifs="${{ steps.changed-files.outputs.changed_gifs }}"
-          converted_gifs="${{ steps.convert-webp.outputs.converted_gifs }}"
 
-          # Combine original GIFs and converted GIFs
-          all_gifs=$(printf "%s\n%s" "$changed_gifs" "$converted_gifs" | grep -v '^$' || true)
-
-          if [ -z "$all_gifs" ]; then
-            echo "No GIF files to process"
+          if [ -z "$changed_gifs" ]; then
+            echo "No GIF files changed in this push"
             exit 0
           fi
 
-          echo "$all_gifs" | while read gif; do
-            # Skip empty lines
+          echo "$changed_gifs" | while read gif; do
             [ -z "$gif" ] && continue
-
-            # Check if file exists (might have been deleted)
             [ ! -f "$gif" ] && echo "Skipping deleted file: $gif" && continue
 
             echo "Processing: $gif"
 
-            # Check if GIF has multiple frames using gifsicle
             frame_count=$(gifsicle --info "$gif" 2>/dev/null | grep -c "image #" || echo "1")
 
             if [ "$frame_count" -gt 1 ] 2>/dev/null; then
               echo "  Found $frame_count frames, coalescing..."
 
-              # Unoptimize the GIF (expands partial frames into complete frames)
               if gifsicle --unoptimize "$gif" -o "${gif}.tmp" 2>/dev/null; then
                 mv "${gif}.tmp" "$gif"
                 echo "  Coalesced successfully"
 
-                # Check if file is over 10 MB (10485760 bytes)
                 file_size=$(stat -c%s "$gif")
                 max_size=10485760
 
                 if [ "$file_size" -gt "$max_size" ]; then
                   echo "  File is $(($file_size / 1024 / 1024)) MB, scaling down..."
 
-                  # Try progressively smaller scales until under 10 MB
                   for scale in 0.9 0.8 0.7 0.6 0.5 0.4 0.3; do
                     echo "    Trying scale ${scale}..."
                     if gifsicle --scale "$scale" "$gif" -o "${gif}.tmp" 2>/dev/null; then
@@ -199,5 +108,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A
-          git commit -m "Coalesce animated GIF frames"
-          git push
+          git commit --amend --no-edit
+          git push --force-with-lease
