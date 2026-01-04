@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gifsicle
+        run: sudo apt-get update && sudo apt-get install -y gifsicle imagemagick
 
       - name: Get changed GIF files
         id: changed-files
@@ -56,9 +56,16 @@ jobs:
             if [ "$frame_count" -gt 1 ] 2>/dev/null; then
               echo "  Found $frame_count frames, coalescing..."
 
+              # First pass: ImageMagick coalesce
+              if convert "$gif" -coalesce "${gif}.tmp" 2>/dev/null; then
+                mv "${gif}.tmp" "$gif"
+                echo "  ImageMagick coalesce done"
+              fi
+
+              # Second pass: gifsicle unoptimize
               if gifsicle --unoptimize "$gif" -o "${gif}.tmp" 2>/dev/null; then
                 mv "${gif}.tmp" "$gif"
-                echo "  Coalesced successfully"
+                echo "  Gifsicle unoptimize done"
 
                 file_size=$(stat -c%s "$gif")
                 max_size=10485760
