@@ -2,6 +2,12 @@ name: Convert WebP Files
 
 on:
   workflow_dispatch:
+    inputs:
+      force_reprocess:
+        description: 'Force reprocess all WebPs (clears processed list)'
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - ratbranch
@@ -20,37 +26,85 @@ jobs:
           fetch-depth: 0
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp imagemagick
+        run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp imagemagick jq
 
-      - name: Get changed WebP files
-        id: changed-files
+      - name: Get files to process
+        id: files-to-process
         run: |
-          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            changed_webps=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.webp$' || true)
-          else
-            changed_webps=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -iE '\.webp$' || true)
+          PROCESSED_FILE=".github/processed-files.json"
+
+          # Force reprocess: clear the WebPs list
+          if [ "${{ github.event.inputs.force_reprocess }}" = "true" ]; then
+            echo "Force reprocess requested - clearing WebP list"
+            if [ -f "$PROCESSED_FILE" ]; then
+              jq '.webps = []' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp" && mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
+            fi
           fi
-          echo "Changed WebPs:"
-          echo "$changed_webps"
-          echo "changed_webps<<EOF" >> $GITHUB_OUTPUT
-          echo "$changed_webps" >> $GITHUB_OUTPUT
+
+          # Get current commit's changed WebPs (to exclude from initial list population)
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            current_commit_webps=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.webp$' || true)
+          else
+            current_commit_webps=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -iE '\.webp$' || true)
+          fi
+
+          # If processed file doesn't exist, create it with all existing WebPs except current commit's
+          if [ ! -f "$PROCESSED_FILE" ]; then
+            echo "Creating processed-files.json..."
+            mkdir -p .github
+
+            # Get all WebPs in repo
+            all_webps=$(find . -type f -iname "*.webp" | sed 's|^\./||' | sort)
+
+            # Build initial list excluding current commit's files
+            initial_webps="[]"
+            while IFS= read -r webp; do
+              [ -z "$webp" ] && continue
+              # Check if this WebP is in current commit (should be processed, not skipped)
+              if ! echo "$current_commit_webps" | grep -qxF "$webp"; then
+                initial_webps=$(echo "$initial_webps" | jq --arg f "$webp" '. + [$f]')
+              fi
+            done <<< "$all_webps"
+
+            echo "{\"gifs\": [], \"webps\": $initial_webps}" | jq '.' > "$PROCESSED_FILE"
+            echo "Created with $(echo "$initial_webps" | jq 'length') pre-existing WebPs"
+          fi
+
+          # Get all WebPs in repo
+          all_webps=$(find . -type f -iname "*.webp" | sed 's|^\./||' | sort)
+
+          # Find WebPs not in processed list
+          unprocessed=""
+          while IFS= read -r webp; do
+            [ -z "$webp" ] && continue
+            if ! jq -e --arg f "$webp" '.webps | index($f)' "$PROCESSED_FILE" > /dev/null 2>&1; then
+              unprocessed="${unprocessed}${webp}"$'\n'
+            fi
+          done <<< "$all_webps"
+
+          echo "WebPs to process:"
+          echo "$unprocessed"
+          echo "unprocessed<<EOF" >> $GITHUB_OUTPUT
+          echo "$unprocessed" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Convert WebP files
         id: convert-webp
         run: |
-          changed_webps="${{ steps.changed-files.outputs.changed_webps }}"
+          unprocessed="${{ steps.files-to-process.outputs.unprocessed }}"
+          PROCESSED_FILE=".github/processed-files.json"
 
-          if [ -z "$changed_webps" ]; then
-            echo "No WebP files changed in this push"
+          if [ -z "$unprocessed" ]; then
+            echo "No WebP files to process"
             exit 0
           fi
 
-          echo "$changed_webps" | while read webp; do
+          echo "$unprocessed" | while read webp; do
             [ -z "$webp" ] && continue
-            [ ! -f "$webp" ] && echo "Skipping deleted file: $webp" && continue
+            [ ! -f "$webp" ] && echo "Skipping missing file: $webp" && continue
 
             echo "Processing: $webp"
+            success=false
 
             # Check if WebP is animated using webpmux
             frame_count=$(webpmux -info "$webp" 2>/dev/null | grep -c "^[[:space:]]*[0-9]*:" || echo "1")
@@ -67,6 +121,7 @@ jobs:
                   rm "$webp"
                   echo "  Removed original WebP"
                   echo "$gif" >> /tmp/converted_gifs.txt
+                  success=true
                 else
                   echo "  Failed to convert (output file empty or missing)"
                   rm -f "$gif"
@@ -83,14 +138,24 @@ jobs:
                 echo "  Converted to: $png"
                 rm "$webp"
                 echo "  Removed original WebP"
+                success=true
               else
                 echo "  Failed to convert"
               fi
+            fi
+
+            # Add to processed list if successful
+            if [ "$success" = true ]; then
+              jq --arg f "$webp" '.webps += [$f] | .webps |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
+              mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
+              echo "  Added to processed list"
             fi
           done
 
       - name: Coalesce converted GIFs
         run: |
+          PROCESSED_FILE=".github/processed-files.json"
+
           if [ ! -f /tmp/converted_gifs.txt ]; then
             echo "No converted GIFs to coalesce"
             exit 0
@@ -140,6 +205,11 @@ jobs:
                     fi
                   done
                 fi
+
+                # Add converted GIF to processed list
+                jq --arg f "$gif" '.gifs += [$f] | .gifs |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
+                mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
+                echo "  Added GIF to processed list"
               else
                 rm -f "${gif}.tmp"
                 echo "  Failed to coalesce"
