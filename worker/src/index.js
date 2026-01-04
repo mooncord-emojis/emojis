@@ -6,9 +6,15 @@ export default {
         const url = new URL(request.url);
         const path = url.pathname;
 
-        // CORS headers
+        // CORS headers - extract just the origin (without path) from FRONTEND_URL
+        let allowedOrigin = '*';
+        if (env.FRONTEND_URL) {
+            const frontendUrl = new URL(env.FRONTEND_URL);
+            allowedOrigin = frontendUrl.origin;
+        }
+
         const corsHeaders = {
-            'Access-Control-Allow-Origin': env.FRONTEND_URL || '*',
+            'Access-Control-Allow-Origin': allowedOrigin,
             'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         };
