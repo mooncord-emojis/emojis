@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp
 
       - name: Get changed files
         id: changed-files
@@ -67,8 +67,8 @@ jobs:
 
             echo "Processing: $webp"
 
-            # Check if WebP is animated using ffprobe
-            frame_count=$(ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of csv=p=0 "$webp" 2>/dev/null || echo "1")
+            # Check if WebP is animated using webpmux
+            frame_count=$(webpmux -info "$webp" 2>/dev/null | grep -c "^[[:space:]]*[0-9]*:" || echo "1")
 
             if [ "$frame_count" -gt 1 ] 2>/dev/null; then
               # Animated WebP -> GIF
@@ -131,7 +131,7 @@ jobs:
             echo "Processing: $gif"
 
             # Check if GIF has multiple frames using gifsicle
-            frame_count=$(gifsicle --info "$gif" 2>/dev/null | grep -oP '^\s+\K\d+(?= images)' || echo "1")
+            frame_count=$(gifsicle --info "$gif" 2>/dev/null | grep -c "image #" || echo "1")
 
             if [ "$frame_count" -gt 1 ] 2>/dev/null; then
               echo "  Found $frame_count frames, coalescing..."
