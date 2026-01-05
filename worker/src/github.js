@@ -96,14 +96,14 @@ function validateInputs(emojiName, targetFolder, imageData, fileExtension) {
         return 'Emoji name is required';
     }
 
-    // Validate emoji name format
-    const namePattern = /^[a-zA-Z0-9_-]+$/;
-    if (!namePattern.test(emojiName)) {
-        return 'Emoji name can only contain letters, numbers, hyphens, and underscores';
+    // Validate emoji name - disallow characters invalid in filenames
+    const invalidChars = /[\/\\:*?"<>|]/;
+    if (invalidChars.test(emojiName)) {
+        return 'Emoji name cannot contain: / \\ : * ? " < > |';
     }
 
-    if (emojiName.length < 2 || emojiName.length > 32) {
-        return 'Emoji name must be between 2 and 32 characters';
+    if (emojiName.length < 2 || emojiName.length > 80) {
+        return 'Emoji name must be between 2 and 80 characters';
     }
 
     if (!targetFolder || !VALID_FOLDERS.includes(targetFolder)) {

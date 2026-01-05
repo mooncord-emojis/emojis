@@ -209,10 +209,10 @@ function handleFormSubmit(event) {
         return;
     }
 
-    // Validate emoji name
-    const namePattern = /^[a-zA-Z0-9_-]+$/;
-    if (!namePattern.test(emojiName)) {
-        alert('Emoji name can only contain letters, numbers, hyphens, and underscores.');
+    // Validate emoji name - disallow characters invalid in filenames
+    const invalidChars = /[\/\\:*?"<>|]/;
+    if (invalidChars.test(emojiName)) {
+        alert('Emoji name cannot contain: / \\ : * ? " < > |');
         return;
     }
 
