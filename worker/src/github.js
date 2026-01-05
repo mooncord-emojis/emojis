@@ -1,8 +1,8 @@
 import { verifyAuthToken } from './auth.js';
 
 const GITHUB_API_BASE = 'https://api.github.com';
-const REPO_OWNER = 'cman85';
-const REPO_NAME = 'mooncord-emojis';
+const REPO_OWNER = 'mooncord-emojis';
+const REPO_NAME = 'emojis';
 const BASE_BRANCH = 'ratbranch';
 
 // Valid target folders
