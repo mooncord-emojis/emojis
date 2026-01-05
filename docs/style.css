@@ -392,6 +392,39 @@ h2 {
     background: rgba(88, 101, 242, 0.1);
 }
 
+/* Notice Box */
+.notice-box {
+    padding: 16px;
+    background: rgba(241, 196, 15, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(241, 196, 15, 0.3);
+    font-size: 0.85rem;
+    color: #ccc;
+    margin-bottom: 20px;
+}
+
+.notice-box strong {
+    color: #f1c40f;
+}
+
+.notice-box a {
+    color: #5865F2;
+    text-decoration: none;
+}
+
+.notice-box a:hover {
+    text-decoration: underline;
+}
+
+.notice-box ul {
+    margin: 10px 0 0 20px;
+    padding: 0;
+}
+
+.notice-box li {
+    margin: 4px 0;
+}
+
 /* Error Box */
 .error-box {
     padding: 40px 20px;
