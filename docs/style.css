@@ -162,13 +162,29 @@ h2 {
     background: rgba(0, 0, 0, 0.3);
     border: 2px dashed rgba(255, 255, 255, 0.2);
     border-radius: 8px;
-    color: #fff;
+    color: #aaa;
     cursor: pointer;
     transition: border-color 0.2s;
 }
 
 .form-group input[type="file"]:hover {
     border-color: #5865F2;
+}
+
+.form-group input[type="file"]::file-selector-button {
+    background: linear-gradient(135deg, #5865F2, #7289da);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 12px;
+    transition: opacity 0.2s;
+}
+
+.form-group input[type="file"]::file-selector-button:hover {
+    opacity: 0.85;
 }
 
 .form-group small {
@@ -218,6 +234,26 @@ h2 {
     padding: 12px;
     max-height: 250px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(88, 101, 242, 0.5) rgba(0, 0, 0, 0.2);
+}
+
+.folder-tree::-webkit-scrollbar {
+    width: 8px;
+}
+
+.folder-tree::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.folder-tree::-webkit-scrollbar-thumb {
+    background: rgba(88, 101, 242, 0.5);
+    border-radius: 4px;
+}
+
+.folder-tree::-webkit-scrollbar-thumb:hover {
+    background: rgba(88, 101, 242, 0.7);
 }
 
 .folder-tree-loading {
