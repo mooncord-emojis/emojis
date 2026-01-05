@@ -121,9 +121,9 @@ function validateInputs(emojiName, targetFolder, imageData, fileExtension) {
         return 'Image file is too large (max 10MB)';
     }
 
-    const validExtensions = ['png', 'gif', 'webp'];
+    const validExtensions = ['png', 'gif', 'webp', 'jpg', 'jpeg'];
     if (!fileExtension || !validExtensions.includes(fileExtension.toLowerCase())) {
-        return 'Invalid file extension. Must be png, gif, or webp';
+        return 'Invalid file extension. Must be png, gif, webp, or jpg';
     }
 
     return null;

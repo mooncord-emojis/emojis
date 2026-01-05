@@ -179,9 +179,9 @@ function handleImageSelect(event) {
     }
 
     // Validate file type
-    const validTypes = ['image/png', 'image/gif', 'image/webp'];
+    const validTypes = ['image/png', 'image/gif', 'image/webp', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
-        alert('Invalid file type. Please upload a PNG, GIF, or WebP image.');
+        alert('Invalid file type. Please upload a PNG, GIF, WebP, or JPG image.');
         imageFileInput.value = '';
         previewContainer.classList.add('hidden');
         return;
