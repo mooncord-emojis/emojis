@@ -88,8 +88,8 @@ function checkAuthCallback() {
     if (token && username) {
         authToken = token;
         currentUsername = username;
-        sessionStorage.setItem('authToken', token);
-        sessionStorage.setItem('username', username);
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('username', username);
         showSection('form');
         usernameSpan.textContent = username;
     }
@@ -97,8 +97,8 @@ function checkAuthCallback() {
 
 // Check for existing session
 function checkExistingSession() {
-    const storedToken = sessionStorage.getItem('authToken');
-    const storedUsername = sessionStorage.getItem('username');
+    const storedToken = localStorage.getItem('authToken');
+    const storedUsername = localStorage.getItem('username');
 
     if (storedToken && storedUsername) {
         authToken = storedToken;
@@ -154,8 +154,8 @@ function handleLogin() {
 function handleLogout() {
     authToken = null;
     currentUsername = null;
-    sessionStorage.removeItem('authToken');
-    sessionStorage.removeItem('username');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('username');
     showSection('login');
     resetFormFields();
 }
