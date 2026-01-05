@@ -13,7 +13,7 @@ body {
 }
 
 .container {
-    max-width: 500px;
+    max-width: 550px;
     margin: 0 auto;
     padding: 40px 20px;
 }
@@ -477,7 +477,7 @@ h2 {
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 16px;
     padding: 30px;
-    max-width: 400px;
+    max-width: 450px;
     width: 90%;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
