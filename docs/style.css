@@ -431,16 +431,16 @@ h2 {
 /* Notice Box */
 .notice-box {
     padding: 16px;
-    background: rgba(241, 196, 15, 0.1);
+    background: rgba(88, 101, 242, 0.15);
     border-radius: 8px;
-    border: 1px solid rgba(241, 196, 15, 0.3);
+    border: 1px solid rgba(88, 101, 242, 0.4);
     font-size: 0.85rem;
     color: #ccc;
     margin-bottom: 20px;
 }
 
 .notice-box strong {
-    color: #f1c40f;
+    color: #7289da;
 }
 
 .notice-box a {
