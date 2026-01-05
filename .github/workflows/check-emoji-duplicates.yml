@@ -29,36 +29,35 @@ jobs:
               return;
             }
 
-            // Extract emoji name from PR title
-            const match = pr.title.match(/^Add emoji:\s*(.+)$/);
-            if (!match) {
-              console.log('Could not parse emoji name from title.');
-              return;
-            }
-
-            const emojiName = match[1].trim();
-            console.log(`Checking for duplicate: ${emojiName}`);
-
-            // Get list of changed files in this PR
+            // Get files changed in this PR
             const { data: files } = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr.number
             });
 
-            // Find the new emoji file path
-            const newFile = files.find(f => f.status === 'added');
-            if (!newFile) {
-              console.log('No new files found in PR.');
+            console.log(`Files in PR: ${files.length}`);
+            files.forEach(f => console.log(`  - ${f.filename} (${f.status})`));
+
+            // Find image files
+            const imageExtensions = ['.png', '.gif', '.webp', '.jpg', '.jpeg'];
+            const imageFiles = files.filter(f => {
+              const lowerName = f.filename.toLowerCase();
+              return imageExtensions.some(ext => lowerName.endsWith(ext));
+            });
+
+            if (imageFiles.length === 0) {
+              console.log('No image files found in PR.');
               return;
             }
 
-            const newFilePath = newFile.filename;
-            const newFileName = newFilePath.split('/').pop();
-            const newEmojiBaseName = newFileName.replace(/\.[^.]+$/, '');
+            // Get the base name of each image file (without extension)
+            const newEmojiNames = imageFiles.map(f => {
+              const fileName = f.filename.split('/').pop();
+              return fileName.replace(/\.[^.]+$/, '').toLowerCase();
+            });
 
-            console.log(`New file: ${newFilePath}`);
-            console.log(`Emoji base name: ${newEmojiBaseName}`);
+            console.log(`New emoji names: ${newEmojiNames.join(', ')}`);
 
             // Get full tree of base branch to check for existing files
             const { data: tree } = await github.rest.git.getTree({
@@ -68,16 +67,24 @@ jobs:
               recursive: 'true'
             });
 
-            // Check for any file with the same base name (ignoring extension)
+            // Get paths of files in this PR (to exclude from duplicate check)
+            const prFilePaths = new Set(imageFiles.map(f => f.filename));
+
+            // Check for any existing file with the same base name (ignoring extension)
             const duplicates = tree.tree.filter(item => {
               if (item.type !== 'blob') return false;
+              if (prFilePaths.has(item.path)) return false; // Skip files in this PR
               const fileName = item.path.split('/').pop();
-              const baseName = fileName.replace(/\.[^.]+$/, '');
-              return baseName.toLowerCase() === newEmojiBaseName.toLowerCase();
+              const baseName = fileName.replace(/\.[^.]+$/, '').toLowerCase();
+              return newEmojiNames.includes(baseName);
             });
 
             if (duplicates.length > 0) {
               const duplicatePaths = duplicates.map(d => `\`${d.path}\``).join('\n- ');
+              const duplicateNames = [...new Set(duplicates.map(d => {
+                const fileName = d.path.split('/').pop();
+                return fileName.replace(/\.[^.]+$/, '');
+              }))].join(', ');
 
               // Post comment explaining the duplicate
               await github.rest.issues.createComment({
@@ -86,7 +93,7 @@ jobs:
                 issue_number: pr.number,
                 body: `## Duplicate Emoji Detected
 
-            An emoji with the name **\`${newEmojiBaseName}\`** already exists in the repository:
+            An emoji with a matching name already exists in the repository:
 
             - ${duplicatePaths}
 
@@ -104,7 +111,7 @@ jobs:
                 state: 'closed'
               });
 
-              console.log(`PR #${pr.number} closed due to duplicate emoji: ${newEmojiBaseName}`);
+              console.log(`PR #${pr.number} closed due to duplicate emoji: ${duplicateNames}`);
             } else {
               console.log('No duplicates found.');
             }
