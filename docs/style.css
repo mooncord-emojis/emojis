@@ -178,6 +178,67 @@ h2 {
     font-size: 0.85rem;
 }
 
+/* Folder Tree */
+.folder-tree {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 12px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.folder-tree-loading {
+    color: #888;
+    font-style: italic;
+}
+
+.folder-tree-error {
+    color: #e74c3c;
+}
+
+.folder-node {
+    margin-left: 0;
+}
+
+.folder-node .folder-children {
+    margin-left: 20px;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    padding-left: 8px;
+}
+
+.folder-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: 2px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: #ccc;
+}
+
+.folder-item:hover {
+    background: rgba(88, 101, 242, 0.2);
+    color: #fff;
+}
+
+.folder-item.selected {
+    background: rgba(88, 101, 242, 0.4);
+    color: #fff;
+    border: 1px solid #5865F2;
+}
+
+.folder-item .folder-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.folder-item .folder-name {
+    font-size: 0.95rem;
+}
+
 /* Image Preview */
 #previewContainer {
     margin-bottom: 24px;

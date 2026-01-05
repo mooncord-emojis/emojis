@@ -17,7 +17,8 @@ const usernameSpan = document.getElementById('username');
 
 const emojiForm = document.getElementById('emojiForm');
 const emojiNameInput = document.getElementById('emojiName');
-const targetFolderSelect = document.getElementById('targetFolder');
+const targetFolderInput = document.getElementById('targetFolder');
+const folderTree = document.getElementById('folderTree');
 const imageFileInput = document.getElementById('imageFile');
 const previewContainer = document.getElementById('previewContainer');
 const imagePreview = document.getElementById('imagePreview');
@@ -109,7 +110,7 @@ function checkExistingSession() {
     }
 }
 
-// Fetch folders from API and populate dropdown
+// Fetch folders from API and build tree UI
 async function loadFolders() {
     if (foldersLoaded) {
         return;
@@ -123,34 +124,89 @@ async function loadFolders() {
             throw new Error(data.error || 'Failed to fetch folders');
         }
 
-        // Clear existing options
-        targetFolderSelect.innerHTML = '';
+        // Build tree structure from flat folder list
+        const tree = buildFolderTree(data.folders);
 
-        // Add placeholder option
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Select a folder...';
-        targetFolderSelect.appendChild(placeholder);
-
-        // Add folder options
-        data.folders.forEach(function(folder) {
-            const option = document.createElement('option');
-            option.value = folder;
-            option.textContent = folder;
-            targetFolderSelect.appendChild(option);
-        });
+        // Render the tree
+        folderTree.innerHTML = '';
+        renderFolderTree(tree, folderTree);
 
         foldersLoaded = true;
 
     } catch (err) {
         console.error('Failed to load folders:', err);
-        // Show error in dropdown
-        targetFolderSelect.innerHTML = '';
-        const errorOption = document.createElement('option');
-        errorOption.value = '';
-        errorOption.textContent = 'Error loading folders - refresh page';
-        targetFolderSelect.appendChild(errorOption);
+        folderTree.innerHTML = '<div class="folder-tree-error">Error loading folders - refresh page</div>';
     }
+}
+
+// Build hierarchical tree from flat folder paths
+function buildFolderTree(folders) {
+    const tree = {};
+
+    folders.forEach(function(path) {
+        const parts = path.split('/');
+        let current = tree;
+
+        parts.forEach(function(part, index) {
+            if (!current[part]) {
+                current[part] = {
+                    fullPath: parts.slice(0, index + 1).join('/'),
+                    children: {}
+                };
+            }
+            current = current[part].children;
+        });
+    });
+
+    return tree;
+}
+
+// Render folder tree recursively
+function renderFolderTree(tree, container) {
+    const sortedKeys = Object.keys(tree).sort();
+
+    sortedKeys.forEach(function(name) {
+        const node = tree[name];
+        const nodeDiv = document.createElement('div');
+        nodeDiv.className = 'folder-node';
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'folder-item';
+        itemDiv.dataset.path = node.fullPath;
+        itemDiv.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name">' + name + '</span>';
+
+        itemDiv.addEventListener('click', function() {
+            selectFolder(node.fullPath, itemDiv);
+        });
+
+        nodeDiv.appendChild(itemDiv);
+
+        // Render children if any
+        const hasChildren = Object.keys(node.children).length > 0;
+        if (hasChildren) {
+            const childrenDiv = document.createElement('div');
+            childrenDiv.className = 'folder-children';
+            renderFolderTree(node.children, childrenDiv);
+            nodeDiv.appendChild(childrenDiv);
+        }
+
+        container.appendChild(nodeDiv);
+    });
+}
+
+// Handle folder selection
+function selectFolder(path, element) {
+    // Remove selected class from all items
+    const allItems = folderTree.querySelectorAll('.folder-item');
+    allItems.forEach(function(item) {
+        item.classList.remove('selected');
+    });
+
+    // Add selected class to clicked item
+    element.classList.add('selected');
+
+    // Update hidden input value
+    targetFolderInput.value = path;
 }
 
 // Show/hide sections
@@ -247,7 +303,7 @@ function handleFormSubmit(event) {
     event.preventDefault();
 
     const emojiName = emojiNameInput.value.trim();
-    const targetFolder = targetFolderSelect.value;
+    const targetFolder = targetFolderInput.value;
     const imageFile = imageFileInput.files[0];
 
     if (!emojiName || !targetFolder || !imageFile) {
@@ -285,7 +341,7 @@ async function handleConfirmedSubmit() {
     showSection('loading');
 
     const emojiName = emojiNameInput.value.trim();
-    const targetFolder = targetFolderSelect.value;
+    const targetFolder = targetFolderInput.value;
     const imageFile = imageFileInput.files[0];
 
     try {
@@ -363,4 +419,11 @@ function resetFormFields() {
     emojiForm.reset();
     previewContainer.classList.add('hidden');
     imagePreview.src = '';
+
+    // Clear folder tree selection
+    const allItems = folderTree.querySelectorAll('.folder-item');
+    allItems.forEach(function(item) {
+        item.classList.remove('selected');
+    });
+    targetFolderInput.value = '';
 }

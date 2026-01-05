@@ -50,9 +50,10 @@
 
                 <div class="form-group">
                     <label for="targetFolder">Target Folder</label>
-                    <select id="targetFolder" name="targetFolder" required>
-                        <option value="">Loading folders...</option>
-                    </select>
+                    <div id="folderTree" class="folder-tree">
+                        <div class="folder-tree-loading">Loading folders...</div>
+                    </div>
+                    <input type="hidden" id="targetFolder" name="targetFolder" required>
                 </div>
 
                 <div class="form-group">
