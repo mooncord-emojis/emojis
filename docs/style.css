@@ -184,25 +184,30 @@ h2 {
 }
 
 .checkbox-label {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     cursor: pointer;
     margin-bottom: 0;
+    line-height: 1;
 }
 
 .checkbox-label input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
+    margin: 0;
     accent-color: #5865F2;
     cursor: pointer;
     flex-shrink: 0;
+    vertical-align: middle;
 }
 
 .checkbox-label span {
     color: #fff;
     font-weight: 500;
     font-size: 1rem;
+    line-height: 1;
+    vertical-align: middle;
 }
 
 /* Folder Tree */
