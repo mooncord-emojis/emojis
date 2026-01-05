@@ -24,8 +24,18 @@ jobs:
             const pr = context.payload.pull_request;
 
             // Only check PRs from the emoji submission bot
-            if (!pr.title.startsWith('Add emoji:')) {
+            const isAddEmoji = pr.title.startsWith('Add emoji:');
+            const isUpdateEmoji = pr.title.startsWith('Update emoji:');
+
+            if (!isAddEmoji && !isUpdateEmoji) {
               console.log('Not an emoji submission PR, skipping.');
+              return;
+            }
+
+            // Check for "Update" label - skip duplicate check if present
+            const labels = pr.labels.map(l => l.name);
+            if (labels.includes('Update')) {
+              console.log('PR has "Update" label, skipping duplicate check.');
               return;
             }
 
@@ -87,16 +97,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pr.number,
-                body: `## Duplicate Emoji Detected
-
-            An emoji with a matching name already exists in the repository:
-
-            - ${duplicatePaths}
-
-            This PR has been automatically closed. Please choose a different name for your emoji and submit again.
-
-            ---
-            *This check was performed automatically.*`
+                body: `## Duplicate Emoji Detected\n\nAn emoji with a matching name already exists in the repository:\n\n- ${duplicatePaths}\n\nThis PR has been automatically closed. Please choose a different name for your emoji and submit again.\n\nIf you intended to update an existing emoji, please resubmit with the "Update Existing Emoji" checkbox checked.\n\n---\n*This check was performed automatically.*`
               });
 
               // Close the PR
