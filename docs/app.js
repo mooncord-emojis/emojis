@@ -20,6 +20,7 @@ const emojiNameInput = document.getElementById('emojiName');
 const targetFolderInput = document.getElementById('targetFolder');
 const folderTree = document.getElementById('folderTree');
 const imageFileInput = document.getElementById('imageFile');
+const updateExistingCheckbox = document.getElementById('updateExisting');
 const previewContainer = document.getElementById('previewContainer');
 const imagePreview = document.getElementById('imagePreview');
 const submitBtn = document.getElementById('submitBtn');
@@ -343,6 +344,7 @@ async function handleConfirmedSubmit() {
     const emojiName = emojiNameInput.value.trim();
     const targetFolder = targetFolderInput.value;
     const imageFile = imageFileInput.files[0];
+    const updateExisting = updateExistingCheckbox.checked;
 
     try {
         // Read file as base64
@@ -362,7 +364,8 @@ async function handleConfirmedSubmit() {
                 emojiName: emojiName,
                 targetFolder: targetFolder,
                 imageData: base64Data,
-                fileExtension: extension
+                fileExtension: extension,
+                updateExisting: updateExisting
             })
         });
 

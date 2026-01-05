@@ -178,6 +178,30 @@ h2 {
     font-size: 0.85rem;
 }
 
+/* Checkbox Group */
+.checkbox-group {
+    margin-top: 20px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: normal;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #5865F2;
+    cursor: pointer;
+}
+
+.checkbox-label span {
+    color: #fff;
+}
+
 /* Folder Tree */
 .folder-tree {
     background: rgba(0, 0, 0, 0.3);

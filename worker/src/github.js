@@ -116,7 +116,7 @@ export async function handleEmojiSubmission(request, env) {
         });
     }
 
-    const { emojiName, targetFolder, imageData, fileExtension } = body;
+    const { emojiName, targetFolder, imageData, fileExtension, updateExisting } = body;
 
     // Validate inputs
     const validationError = await validateInputs(emojiName, targetFolder, imageData, fileExtension, env.GITHUB_TOKEN);
@@ -135,7 +135,8 @@ export async function handleEmojiSubmission(request, env) {
             targetFolder,
             imageData,
             fileExtension,
-            authPayload.username
+            authPayload.username,
+            updateExisting === true
         );
 
         return new Response(JSON.stringify({ prUrl }), {
@@ -216,7 +217,7 @@ function checkRateLimit(userId) {
     return { allowed: false, remaining: 0 };
 }
 
-async function createPullRequest(githubToken, emojiName, targetFolder, imageData, fileExtension, discordUsername) {
+async function createPullRequest(githubToken, emojiName, targetFolder, imageData, fileExtension, discordUsername, updateExisting) {
     const headers = {
         'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json',
@@ -295,7 +296,8 @@ async function createPullRequest(githubToken, emojiName, targetFolder, imageData
     const tree = await treeResponse.json();
 
     // 5. Create commit
-    const commitMessage = `Add emoji: ${emojiName}\n\nSubmitted by Discord user: ${discordUsername}\nFolder: ${targetFolder}/`;
+    const actionWord = updateExisting ? 'Update' : 'Add';
+    const commitMessage = `${actionWord} emoji: ${emojiName}\n\nSubmitted by Discord user: ${discordUsername}\nFolder: ${targetFolder}/`;
     const commitResponse = await fetch(
         `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/commits`,
         {
@@ -340,7 +342,7 @@ async function createPullRequest(githubToken, emojiName, targetFolder, imageData
 
     // 7. Create pull request
     const imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeURIComponent(targetFolder)}/${emojiName}.${fileExtension}`;
-    const prBody = `## New Emoji Submission
+    const prBody = `## ${updateExisting ? 'Emoji Update' : 'New Emoji Submission'}
 
 **Emoji Name:** \`${emojiName}\`
 **Target Folder:** \`${targetFolder}/\`
@@ -358,7 +360,7 @@ async function createPullRequest(githubToken, emojiName, targetFolder, imageData
             method: 'POST',
             headers,
             body: JSON.stringify({
-                title: `Add emoji: ${emojiName}`,
+                title: `${actionWord} emoji: ${emojiName}`,
                 body: prBody,
                 head: branchName,
                 base: BASE_BRANCH
@@ -373,5 +375,17 @@ async function createPullRequest(githubToken, emojiName, targetFolder, imageData
     }
 
     const pr = await prResponse.json();
+
+    // 8. Add label to the PR
+    const labelName = updateExisting ? 'Update' : 'New';
+    await fetch(
+        `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/issues/${pr.number}/labels`,
+        {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ labels: [labelName] })
+        }
+    );
+
     return pr.html_url;
 }
