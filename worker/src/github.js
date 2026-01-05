@@ -276,11 +276,15 @@ async function createPullRequest(githubToken, emojiName, targetFolder, imageData
     }
 
     // 7. Create pull request
+    const imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeURIComponent(targetFolder)}/${emojiName}.${fileExtension}`;
     const prBody = `## New Emoji Submission
 
 **Emoji Name:** \`${emojiName}\`
 **Target Folder:** \`${targetFolder}/\`
 **Submitted by:** ${discordUsername} (via Discord)
+
+### Preview
+![${emojiName}](${imageUrl})
 
 ---
 *This PR was automatically created by the Mooncord Emoji Submission system.*`;
