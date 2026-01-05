@@ -21,6 +21,19 @@
         </svg>
     </a>
 
+    <div id="accountDropdown" class="account-dropdown hidden">
+        <button id="accountBtn" class="account-btn">
+            <img id="accountAvatar" class="account-avatar" src="" alt="">
+            <span id="accountName" class="account-name"></span>
+            <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                <path d="M2 4L6 8L10 4"/>
+            </svg>
+        </button>
+        <div id="accountMenu" class="account-menu">
+            <button id="logoutBtn" class="account-menu-item">Logout</button>
+        </div>
+    </div>
+
     <div class="container">
         <h1>🌙² Mooncord Emoji Submission</h1>
 
@@ -43,9 +56,6 @@
         </div>
 
         <div id="formSection" class="hidden">
-            <p class="welcome-msg">Logged in as <span id="username"></span></p>
-            <button id="logoutBtn" class="logout-btn">Logout</button>
-
             <form id="emojiForm">
                 <div class="form-group">
                     <label for="emojiName">Emoji Name</label>

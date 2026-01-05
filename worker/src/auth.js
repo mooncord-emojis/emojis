@@ -122,8 +122,17 @@ export async function handleDiscordCallback(request, env) {
             .setExpirationTime('1h')
             .sign(jwtSecret);
 
+        // Build avatar URL
+        let avatarUrl = '';
+        if (userData.avatar) {
+            avatarUrl = `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png`;
+        }
+
         // Redirect back to frontend with token
-        const successUrl = `${redirectUrl}?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
+        let successUrl = `${redirectUrl}?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
+        if (avatarUrl) {
+            successUrl += `&avatar=${encodeURIComponent(avatarUrl)}`;
+        }
         return Response.redirect(successUrl, 302);
 
     } catch (error) {

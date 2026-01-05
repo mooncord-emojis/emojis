@@ -13,7 +13,11 @@ const errorStatus = document.getElementById('errorStatus');
 const loginBtn = document.getElementById('loginBtn');
 const retryLoginBtn = document.getElementById('retryLoginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
-const usernameSpan = document.getElementById('username');
+
+const accountDropdown = document.getElementById('accountDropdown');
+const accountBtn = document.getElementById('accountBtn');
+const accountAvatar = document.getElementById('accountAvatar');
+const accountName = document.getElementById('accountName');
 
 const emojiForm = document.getElementById('emojiForm');
 const emojiNameInput = document.getElementById('emojiName');
@@ -41,6 +45,7 @@ const modalBackdrop = document.querySelector('.modal-backdrop');
 // State
 let authToken = null;
 let currentUsername = null;
+let currentAvatar = null;
 let foldersLoaded = false;
 
 // Initialize
@@ -63,6 +68,14 @@ function setupEventListeners() {
     confirmCancelBtn.addEventListener('click', hideConfirmModal);
     confirmSubmitBtn.addEventListener('click', handleConfirmedSubmit);
     modalBackdrop.addEventListener('click', hideConfirmModal);
+
+    // Account dropdown
+    accountBtn.addEventListener('click', toggleAccountDropdown);
+    document.addEventListener('click', function(event) {
+        if (!accountDropdown.contains(event.target)) {
+            accountDropdown.classList.remove('open');
+        }
+    });
 }
 
 // Check for OAuth callback in URL
@@ -70,6 +83,7 @@ function checkAuthCallback() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const username = urlParams.get('username');
+    const avatar = urlParams.get('avatar');
     const error = urlParams.get('error');
 
     // Clear URL params
@@ -91,10 +105,29 @@ function checkAuthCallback() {
     if (token && username) {
         authToken = token;
         currentUsername = username;
+        currentAvatar = avatar || '';
         localStorage.setItem('authToken', token);
         localStorage.setItem('username', username);
+        localStorage.setItem('avatar', avatar || '');
         showSection('form');
-        usernameSpan.textContent = username;
+        updateAccountDisplay();
+    }
+}
+
+// Toggle account dropdown
+function toggleAccountDropdown(event) {
+    event.stopPropagation();
+    accountDropdown.classList.toggle('open');
+}
+
+// Update account display
+function updateAccountDisplay() {
+    accountName.textContent = currentUsername;
+    if (currentAvatar) {
+        accountAvatar.src = currentAvatar;
+        accountAvatar.style.display = 'block';
+    } else {
+        accountAvatar.style.display = 'none';
     }
 }
 
@@ -102,12 +135,14 @@ function checkAuthCallback() {
 function checkExistingSession() {
     const storedToken = localStorage.getItem('authToken');
     const storedUsername = localStorage.getItem('username');
+    const storedAvatar = localStorage.getItem('avatar');
 
     if (storedToken && storedUsername) {
         authToken = storedToken;
         currentUsername = storedUsername;
+        currentAvatar = storedAvatar || '';
         showSection('form');
-        usernameSpan.textContent = storedUsername;
+        updateAccountDisplay();
     }
 }
 
@@ -219,6 +254,8 @@ function showSection(section) {
     loadingStatus.classList.add('hidden');
     successStatus.classList.add('hidden');
     errorStatus.classList.add('hidden');
+    accountDropdown.classList.add('hidden');
+    accountDropdown.classList.remove('open');
 
     switch (section) {
         case 'login':
@@ -229,19 +266,23 @@ function showSection(section) {
             break;
         case 'form':
             formSection.classList.remove('hidden');
+            accountDropdown.classList.remove('hidden');
             loadFolders();
             break;
         case 'loading':
             statusSection.classList.remove('hidden');
             loadingStatus.classList.remove('hidden');
+            accountDropdown.classList.remove('hidden');
             break;
         case 'success':
             statusSection.classList.remove('hidden');
             successStatus.classList.remove('hidden');
+            accountDropdown.classList.remove('hidden');
             break;
         case 'error':
             statusSection.classList.remove('hidden');
             errorStatus.classList.remove('hidden');
+            accountDropdown.classList.remove('hidden');
             break;
     }
 }
