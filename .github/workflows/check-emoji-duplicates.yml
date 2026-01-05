@@ -67,13 +67,9 @@ jobs:
               recursive: 'true'
             });
 
-            // Get paths of files in this PR (to exclude from duplicate check)
-            const prFilePaths = new Set(imageFiles.map(f => f.filename));
-
             // Check for any existing file with the same base name (ignoring extension)
             const duplicates = tree.tree.filter(item => {
               if (item.type !== 'blob') return false;
-              if (prFilePaths.has(item.path)) return false; // Skip files in this PR
               const fileName = item.path.split('/').pop();
               const baseName = fileName.replace(/\.[^.]+$/, '').toLowerCase();
               return newEmojiNames.includes(baseName);
