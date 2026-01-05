@@ -18,12 +18,16 @@ on:
 jobs:
   coalesce:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y gifsicle imagemagick jq
