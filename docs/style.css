@@ -186,20 +186,23 @@ h2 {
 .checkbox-label {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     cursor: pointer;
-    font-weight: normal;
+    margin-bottom: 0;
 }
 
 .checkbox-label input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     accent-color: #5865F2;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .checkbox-label span {
     color: #fff;
+    font-weight: 500;
+    font-size: 1rem;
 }
 
 /* Folder Tree */
