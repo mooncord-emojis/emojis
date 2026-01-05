@@ -105,6 +105,35 @@
                 </div>
             </div>
         </div>
+
+        <!-- Confirmation Modal -->
+        <div id="confirmModal" class="modal hidden">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <h2>Confirm Submission</h2>
+                <p>Please review your submission:</p>
+
+                <div class="confirm-details">
+                    <div class="confirm-row">
+                        <span class="confirm-label">Emoji Name:</span>
+                        <span id="confirmEmojiName" class="confirm-value"></span>
+                    </div>
+                    <div class="confirm-row">
+                        <span class="confirm-label">Target Folder:</span>
+                        <span id="confirmTargetFolder" class="confirm-value"></span>
+                    </div>
+                    <div class="confirm-preview">
+                        <span class="confirm-label">Image:</span>
+                        <img id="confirmImagePreview" alt="Emoji preview">
+                    </div>
+                </div>
+
+                <div class="modal-buttons">
+                    <button id="confirmCancelBtn" class="modal-btn cancel-btn">Cancel</button>
+                    <button id="confirmSubmitBtn" class="modal-btn confirm-btn">Submit</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>

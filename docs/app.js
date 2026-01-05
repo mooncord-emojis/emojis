@@ -28,6 +28,14 @@ const submitAnotherBtn = document.getElementById('submitAnotherBtn');
 const tryAgainBtn = document.getElementById('tryAgainBtn');
 const errorMessage = document.getElementById('errorMessage');
 
+const confirmModal = document.getElementById('confirmModal');
+const confirmEmojiName = document.getElementById('confirmEmojiName');
+const confirmTargetFolder = document.getElementById('confirmTargetFolder');
+const confirmImagePreview = document.getElementById('confirmImagePreview');
+const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+const confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
+const modalBackdrop = document.querySelector('.modal-backdrop');
+
 // State
 let authToken = null;
 let currentUsername = null;
@@ -44,9 +52,14 @@ function setupEventListeners() {
     retryLoginBtn.addEventListener('click', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
     imageFileInput.addEventListener('change', handleImageSelect);
-    emojiForm.addEventListener('submit', handleSubmit);
+    emojiForm.addEventListener('submit', handleFormSubmit);
     submitAnotherBtn.addEventListener('click', resetForm);
     tryAgainBtn.addEventListener('click', resetForm);
+
+    // Modal event listeners
+    confirmCancelBtn.addEventListener('click', hideConfirmModal);
+    confirmSubmitBtn.addEventListener('click', handleConfirmedSubmit);
+    modalBackdrop.addEventListener('click', hideConfirmModal);
 }
 
 // Check for OAuth callback in URL
@@ -183,8 +196,8 @@ function handleImageSelect(event) {
     reader.readAsDataURL(file);
 }
 
-// Handle form submission
-async function handleSubmit(event) {
+// Handle form submission - show confirmation modal
+function handleFormSubmit(event) {
     event.preventDefault();
 
     const emojiName = emojiNameInput.value.trim();
@@ -203,7 +216,31 @@ async function handleSubmit(event) {
         return;
     }
 
+    // Show confirmation modal
+    showConfirmModal(emojiName, targetFolder);
+}
+
+// Show confirmation modal
+function showConfirmModal(emojiName, targetFolder) {
+    confirmEmojiName.textContent = emojiName;
+    confirmTargetFolder.textContent = targetFolder + '/';
+    confirmImagePreview.src = imagePreview.src;
+    confirmModal.classList.remove('hidden');
+}
+
+// Hide confirmation modal
+function hideConfirmModal() {
+    confirmModal.classList.add('hidden');
+}
+
+// Handle confirmed submission
+async function handleConfirmedSubmit() {
+    hideConfirmModal();
     showSection('loading');
+
+    const emojiName = emojiNameInput.value.trim();
+    const targetFolder = targetFolderSelect.value;
+    const imageFile = imageFileInput.files[0];
 
     try {
         // Read file as base64

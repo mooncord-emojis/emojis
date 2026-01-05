@@ -322,6 +322,135 @@ h2 {
     margin: 0 auto;
 }
 
+/* Confirmation Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    position: relative;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content h2 {
+    text-align: center;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+.modal-content > p {
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 24px;
+}
+
+.confirm-details {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.confirm-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.confirm-row:last-child {
+    border-bottom: none;
+}
+
+.confirm-label {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.confirm-value {
+    color: #fff;
+    font-weight: 600;
+}
+
+.confirm-preview {
+    padding-top: 15px;
+    text-align: center;
+}
+
+.confirm-preview .confirm-label {
+    display: block;
+    margin-bottom: 12px;
+}
+
+.confirm-preview img {
+    max-width: 96px;
+    max-height: 96px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 8px;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 12px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cancel-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #aaa;
+}
+
+.cancel-btn:hover {
+    border-color: #e74c3c;
+    color: #e74c3c;
+}
+
+.confirm-btn {
+    background: linear-gradient(135deg, #5865F2, #7289da);
+    color: white;
+}
+
+.confirm-btn:hover {
+    opacity: 0.9;
+}
+
 /* Responsive */
 @media (max-width: 480px) {
     .container {
