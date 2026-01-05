@@ -46,16 +46,8 @@ jobs:
           fi
 
           # Get current commit's changed GIFs (to exclude from initial list population)
-          # Check if before commit exists (it may not after force pushes from --amend)
-          before_commit="${{ github.event.before }}"
-          if [ "$before_commit" = "0000000000000000000000000000000000000000" ]; then
-            current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
-          elif git cat-file -e "$before_commit" 2>/dev/null; then
-            current_commit_gifs=$(git diff --name-only "$before_commit" ${{ github.event.after }} | grep -iE '\.gif$' || true)
-          else
-            # Before commit doesn't exist (likely due to previous --amend), fall back to HEAD
-            current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
-          fi
+          # Always use HEAD since this workflow amends commits, making github.event.before unreliable
+          current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
 
           # If processed file doesn't exist, create it with all existing GIFs except current commit's
           if [ ! -f "$PROCESSED_FILE" ]; then
