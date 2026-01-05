@@ -1,5 +1,5 @@
 import { handleDiscordAuth, handleDiscordCallback } from './auth.js';
-import { handleEmojiSubmission } from './github.js';
+import { handleEmojiSubmission, handleGetFolders } from './github.js';
 
 export default {
     async fetch(request, env, ctx) {
@@ -34,6 +34,8 @@ export default {
                 response = await handleDiscordCallback(request, env);
             } else if (path === '/api/submit' && request.method === 'POST') {
                 response = await handleEmojiSubmission(request, env);
+            } else if (path === '/api/folders' && request.method === 'GET') {
+                response = await handleGetFolders(request, env);
             } else if (path === '/health') {
                 response = new Response(JSON.stringify({ status: 'ok' }), {
                     headers: { 'Content-Type': 'application/json' }

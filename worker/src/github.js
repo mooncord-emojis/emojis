@@ -5,17 +5,78 @@ const REPO_OWNER = 'mooncord-emojis';
 const REPO_NAME = 'emojis';
 const BASE_BRANCH = 'ratbranch';
 
-// Valid target folders
-const VALID_FOLDERS = [
-    'Animated',
-    'Static',
-    'MOONMOON',
-    'MOONMOON/7TV',
-    'MOONMOON/BTTV',
-    'PEPCELSCLICKME',
-    'PEPCELSCLICKME/GOONER SHIT',
-    'Zero Width'
+// Folders to exclude from the dropdown
+const EXCLUDED_FOLDERS = [
+    '.github',
+    'docs'
 ];
+
+// Cache for folder list (refreshed periodically)
+let cachedFolders = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+// Fetch folders from the repository
+async function fetchFoldersFromRepo(githubToken) {
+    const now = Date.now();
+
+    // Return cached if still valid
+    if (cachedFolders && (now - cacheTimestamp) < CACHE_DURATION_MS) {
+        return cachedFolders;
+    }
+
+    const headers = {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Mooncord-Emoji-Submission-Bot'
+    };
+
+    // Get the tree recursively
+    const treeResponse = await fetch(
+        `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BASE_BRANCH}?recursive=1`,
+        { headers }
+    );
+
+    if (!treeResponse.ok) {
+        throw new Error('Failed to fetch repository tree');
+    }
+
+    const treeData = await treeResponse.json();
+
+    // Filter to only directories (type === 'tree'), exclude hidden/system folders
+    const folders = treeData.tree
+        .filter(item => item.type === 'tree')
+        .map(item => item.path)
+        .filter(path => {
+            const topLevel = path.split('/')[0];
+            return !EXCLUDED_FOLDERS.includes(topLevel);
+        })
+        .sort();
+
+    // Update cache
+    cachedFolders = folders;
+    cacheTimestamp = now;
+
+    return folders;
+}
+
+// Handle GET /api/folders request
+export async function handleGetFolders(request, env) {
+    try {
+        const folders = await fetchFoldersFromRepo(env.GITHUB_TOKEN);
+
+        return new Response(JSON.stringify({ folders }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error fetching folders:', error);
+        return new Response(JSON.stringify({ error: 'Failed to fetch folders' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
 
 // Rate limiting map (in-memory, resets on worker restart)
 const rateLimitMap = new Map();
@@ -58,7 +119,7 @@ export async function handleEmojiSubmission(request, env) {
     const { emojiName, targetFolder, imageData, fileExtension } = body;
 
     // Validate inputs
-    const validationError = validateInputs(emojiName, targetFolder, imageData, fileExtension);
+    const validationError = await validateInputs(emojiName, targetFolder, imageData, fileExtension, env.GITHUB_TOKEN);
     if (validationError) {
         return new Response(JSON.stringify({ error: validationError }), {
             status: 400,
@@ -91,7 +152,7 @@ export async function handleEmojiSubmission(request, env) {
     }
 }
 
-function validateInputs(emojiName, targetFolder, imageData, fileExtension) {
+async function validateInputs(emojiName, targetFolder, imageData, fileExtension, githubToken) {
     if (!emojiName || typeof emojiName !== 'string') {
         return 'Emoji name is required';
     }
@@ -106,7 +167,9 @@ function validateInputs(emojiName, targetFolder, imageData, fileExtension) {
         return 'Emoji name must be between 2 and 80 characters';
     }
 
-    if (!targetFolder || !VALID_FOLDERS.includes(targetFolder)) {
+    // Validate target folder against dynamic list from repo
+    const validFolders = await fetchFoldersFromRepo(githubToken);
+    if (!targetFolder || !validFolders.includes(targetFolder)) {
         return 'Invalid target folder';
     }
 

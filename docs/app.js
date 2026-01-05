@@ -39,6 +39,7 @@ const modalBackdrop = document.querySelector('.modal-backdrop');
 // State
 let authToken = null;
 let currentUsername = null;
+let foldersLoaded = false;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
@@ -108,6 +109,50 @@ function checkExistingSession() {
     }
 }
 
+// Fetch folders from API and populate dropdown
+async function loadFolders() {
+    if (foldersLoaded) {
+        return;
+    }
+
+    try {
+        const response = await fetch(API_BASE_URL + '/api/folders');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch folders');
+        }
+
+        // Clear existing options
+        targetFolderSelect.innerHTML = '';
+
+        // Add placeholder option
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select a folder...';
+        targetFolderSelect.appendChild(placeholder);
+
+        // Add folder options
+        data.folders.forEach(function(folder) {
+            const option = document.createElement('option');
+            option.value = folder;
+            option.textContent = folder;
+            targetFolderSelect.appendChild(option);
+        });
+
+        foldersLoaded = true;
+
+    } catch (err) {
+        console.error('Failed to load folders:', err);
+        // Show error in dropdown
+        targetFolderSelect.innerHTML = '';
+        const errorOption = document.createElement('option');
+        errorOption.value = '';
+        errorOption.textContent = 'Error loading folders - refresh page';
+        targetFolderSelect.appendChild(errorOption);
+    }
+}
+
 // Show/hide sections
 function showSection(section) {
     loginSection.classList.add('hidden');
@@ -127,6 +172,7 @@ function showSection(section) {
             break;
         case 'form':
             formSection.classList.remove('hidden');
+            loadFolders();
             break;
         case 'loading':
             statusSection.classList.remove('hidden');
