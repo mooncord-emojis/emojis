@@ -4,6 +4,20 @@
     padding: 0;
 }
 
+/* GitHub Link */
+.github-link {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    color: rgba(255, 255, 255, 0.5);
+    transition: color 0.2s;
+    z-index: 100;
+}
+
+.github-link:hover {
+    color: #fff;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
