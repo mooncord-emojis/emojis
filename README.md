@@ -3,6 +3,11 @@
 ## Getting Started
 - Install the Custom Emoji plugin
 - Open the Custom Emoji plugin settings
-- Type `cman85/mooncord-emojis` into the Repository field
+- Type `mooncord-emojis/emojis` into the Repository field
 - Emoji are automatically downloaded and saved to `.runelite/emojis/github-pack/`
     - This will take a few minutes (probably)
+
+## Submitting New Emoji
+- Go to https://mooncord-emojis.github.io/emojis/
+- Follow the instructions
+- Mooncorders only
