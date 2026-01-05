@@ -18,12 +18,16 @@ on:
 jobs:
   convert:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
 
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp imagemagick jq
@@ -42,11 +46,8 @@ jobs:
           fi
 
           # Get current commit's changed WebPs (to exclude from initial list population)
-          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            current_commit_webps=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.webp$' || true)
-          else
-            current_commit_webps=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -iE '\.webp$' || true)
-          fi
+          # Always use HEAD since this workflow amends commits, making github.event.before unreliable
+          current_commit_webps=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.webp$' || true)
 
           # If processed file doesn't exist, create it with all existing WebPs except current commit's
           if [ ! -f "$PROCESSED_FILE" ]; then
@@ -144,18 +145,23 @@ jobs:
               fi
             fi
 
-            # Add to processed list if successful
+            # Track successfully processed files
             if [ "$success" = true ]; then
-              jq --arg f "$webp" '.webps += [$f] | .webps |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
-              mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
-              echo "  Added to processed list"
+              echo "$webp" >> /tmp/processed-webps.txt
+              echo "  Successfully processed"
             fi
           done
 
-      - name: Coalesce converted GIFs
-        run: |
-          PROCESSED_FILE=".github/processed-files.json"
+          # Output the list of successfully processed files
+          if [ -f /tmp/processed-webps.txt ]; then
+            echo "processed<<EOF" >> $GITHUB_OUTPUT
+            cat /tmp/processed-webps.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
 
+      - name: Coalesce converted GIFs
+        id: coalesce
+        run: |
           if [ ! -f /tmp/converted_gifs.txt ]; then
             echo "No converted GIFs to coalesce"
             exit 0
@@ -206,16 +212,22 @@ jobs:
                   done
                 fi
 
-                # Add converted GIF to processed list
-                jq --arg f "$gif" '.gifs += [$f] | .gifs |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
-                mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
-                echo "  Added GIF to processed list"
+                # Track successfully coalesced GIF
+                echo "$gif" >> /tmp/coalesced-gifs.txt
+                echo "  Successfully coalesced"
               else
                 rm -f "${gif}.tmp"
                 echo "  Failed to coalesce"
               fi
             fi
           done
+
+          # Output the list of successfully coalesced GIFs
+          if [ -f /tmp/coalesced-gifs.txt ]; then
+            echo "coalesced<<EOF" >> $GITHUB_OUTPUT
+            cat /tmp/coalesced-gifs.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
 
       - name: Check for changes
         id: changes
@@ -227,10 +239,64 @@ jobs:
           fi
 
       - name: Commit changes
+        id: commit
         if: steps.changes.outputs.has_changes == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A
-          git commit --amend --no-edit
-          git push --force-with-lease
+
+          # Check if there's actually anything staged to commit
+          if git diff --cached --quiet; then
+            echo "No changes staged, skipping commit"
+            echo "committed=false" >> $GITHUB_OUTPUT
+          else
+            git commit --amend --no-edit
+            git push --force-with-lease
+            echo "committed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update processed files list
+        if: steps.convert-webp.outputs.processed != '' || steps.coalesce.outputs.coalesced != ''
+        run: |
+          PROCESSED_FILE=".github/processed-files.json"
+          processedWebps="${{ steps.convert-webp.outputs.processed }}"
+          coalescedGifs="${{ steps.coalesce.outputs.coalesced }}"
+
+          # Add processed WebPs
+          if [ -n "$processedWebps" ]; then
+            echo "Adding successfully processed WebPs to processed list..."
+            while IFS= read -r webp; do
+              [ -z "$webp" ] && continue
+              jq --arg f "$webp" '.webps += [$f] | .webps |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
+              mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
+              echo "  Added WebP: $webp"
+            done <<< "$processedWebps"
+          fi
+
+          # Add coalesced GIFs
+          if [ -n "$coalescedGifs" ]; then
+            echo "Adding successfully coalesced GIFs to processed list..."
+            while IFS= read -r gif; do
+              [ -z "$gif" ] && continue
+              jq --arg f "$gif" '.gifs += [$f] | .gifs |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
+              mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
+              echo "  Added GIF: $gif"
+            done <<< "$coalescedGifs"
+          fi
+
+          git add "$PROCESSED_FILE"
+
+          # Only commit if the JSON actually changed
+          if ! git diff --cached --quiet; then
+            if [ "${{ steps.commit.outputs.committed }}" = "true" ]; then
+              # Previous commit happened, amend it
+              git commit --amend --no-edit
+            else
+              # No previous commit, create a new one
+              git commit -m "Update processed files list"
+            fi
+            git push --force-with-lease
+          else
+            echo "Processed list unchanged"
+          fi

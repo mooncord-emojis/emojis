@@ -199,17 +199,12 @@ jobs:
           fi
 
       - name: Update processed files list
-        if: steps.commit.outputs.committed == 'true'
+        if: steps.coalesce.outputs.processed != ''
         run: |
           PROCESSED_FILE=".github/processed-files.json"
           processed="${{ steps.coalesce.outputs.processed }}"
 
-          if [ -z "$processed" ]; then
-            echo "No files to add to processed list"
-            exit 0
-          fi
-
-          echo "Adding successfully committed files to processed list..."
+          echo "Adding successfully processed files to processed list..."
           while IFS= read -r gif; do
             [ -z "$gif" ] && continue
             jq --arg f "$gif" '.gifs += [$f] | .gifs |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
@@ -218,5 +213,17 @@ jobs:
           done <<< "$processed"
 
           git add "$PROCESSED_FILE"
-          git commit --amend --no-edit
-          git push --force-with-lease
+
+          # Only commit if the JSON actually changed
+          if ! git diff --cached --quiet; then
+            if [ "${{ steps.commit.outputs.committed }}" = "true" ]; then
+              # Previous commit happened, amend it
+              git commit --amend --no-edit
+            else
+              # No previous commit, create a new one
+              git commit -m "Update processed files list"
+            fi
+            git push --force-with-lease
+          else
+            echo "Processed list unchanged"
+          fi
