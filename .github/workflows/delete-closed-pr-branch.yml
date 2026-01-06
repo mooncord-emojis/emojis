@@ -3,6 +3,8 @@ name: Delete Closed PR Branch
 on:
   pull_request:
     types: [closed]
+    branches:
+      - ratbranch
 
 jobs:
   delete-branch:
