@@ -46,11 +46,8 @@ jobs:
           fi
 
           # Get current commit's changed GIFs (to exclude from initial list population)
-          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
-          else
-            current_commit_gifs=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -iE '\.gif$' || true)
-          fi
+          # Always use HEAD since this workflow amends commits, making github.event.before unreliable
+          current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
 
           # If processed file doesn't exist, create it with all existing GIFs except current commit's
           if [ ! -f "$PROCESSED_FILE" ]; then
@@ -93,6 +90,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Coalesce GIF files
+        id: coalesce
         run: |
           unprocessed="${{ steps.files-to-process.outputs.unprocessed }}"
           PROCESSED_FILE=".github/processed-files.json"
@@ -159,13 +157,19 @@ jobs:
               success=true
             fi
 
-            # Add to processed list if successful
+            # Track successfully processed files
             if [ "$success" = true ]; then
-              jq --arg f "$gif" '.gifs += [$f] | .gifs |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
-              mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
-              echo "  Added to processed list"
+              echo "$gif" >> /tmp/processed-gifs.txt
+              echo "  Successfully processed"
             fi
           done
+
+          # Output the list of successfully processed files
+          if [ -f /tmp/processed-gifs.txt ]; then
+            echo "processed<<EOF" >> $GITHUB_OUTPUT
+            cat /tmp/processed-gifs.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
 
       - name: Check for changes
         id: changes
@@ -177,10 +181,49 @@ jobs:
           fi
 
       - name: Commit changes
+        id: commit
         if: steps.changes.outputs.has_changes == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A
-          git commit --amend --no-edit
-          git push --force-with-lease
+
+          # Check if there's actually anything staged to commit
+          if git diff --cached --quiet; then
+            echo "No changes staged, skipping commit"
+            echo "committed=false" >> $GITHUB_OUTPUT
+          else
+            git commit --amend -m "$(git log -1 --format=%B) [skip ci]"
+            git push --force-with-lease
+            echo "committed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update processed files list
+        if: steps.coalesce.outputs.processed != ''
+        run: |
+          PROCESSED_FILE=".github/processed-files.json"
+          processed="${{ steps.coalesce.outputs.processed }}"
+
+          echo "Adding successfully processed files to processed list..."
+          while IFS= read -r gif; do
+            [ -z "$gif" ] && continue
+            jq --arg f "$gif" '.gifs += [$f] | .gifs |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
+            mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
+            echo "  Added: $gif"
+          done <<< "$processed"
+
+          git add "$PROCESSED_FILE"
+
+          # Only commit if the JSON actually changed
+          if ! git diff --cached --quiet; then
+            if [ "${{ steps.commit.outputs.committed }}" = "true" ]; then
+              # Previous commit happened, amend it
+              git commit --amend --no-edit
+            else
+              # No previous commit, create a new one
+              git commit -m "Update processed files list [skip ci]"
+            fi
+            git push --force-with-lease
+          else
+            echo "Processed list unchanged"
+          fi
