@@ -26,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.PAT }}
           persist-credentials: true
@@ -42,6 +42,8 @@ jobs:
 
       - name: Get files to process
         id: files-to-process
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PROCESSED_FILE=".github/processed-files.json"
 
@@ -53,9 +55,9 @@ jobs:
             fi
           fi
 
-          # Get changed WebPs - compare against base branch for PRs
+          # Get changed WebPs - use GitHub API for PRs (faster, no need for full git history)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            current_commit_webps=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -iE '\.webp$' || true)
+            current_commit_webps=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files --jq '.[].filename' | grep -iE '\.webp$' || true)
           else
             current_commit_webps=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.webp$' || true)
           fi
