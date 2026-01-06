@@ -1,0 +1,28 @@
+name: Delete Closed PR Branch
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  delete-branch:
+    runs-on: ubuntu-latest
+    # Only delete if:
+    # - PR was closed without merging
+    # - Branch is in this repo (not a fork)
+    # - Branch name starts with "emoji/"
+    if: |
+      github.event.pull_request.merged == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'emoji/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Delete branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Deleting branch: ${{ github.event.pull_request.head.ref }}"
+          gh api repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }} -X DELETE
+          echo "Successfully deleted branch"
