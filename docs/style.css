@@ -124,6 +124,18 @@ h1 {
     font-size: 1.8rem;
 }
 
+.title-moon {
+    background: linear-gradient(to right, #fadd9c, #c28458);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.title-sup {
+    font-size: 0.75em;
+    vertical-align: top;
+}
+
 h2 {
     font-size: 1.4rem;
     margin-bottom: 10px;
