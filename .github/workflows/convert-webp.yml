@@ -323,8 +323,7 @@ jobs:
               -f name="$checkName" \
               -f head_sha="$newSha" \
               -f status="completed" \
-              -f conclusion="success" \
-              -f output='{"title":"Processed by workflow","summary":"This commit was created by a workflow. Processing already completed."}'
+              -f conclusion="success"
             echo "  Created check run: $checkName"
           done
 
