@@ -8,7 +8,7 @@ on:
         required: false
         type: boolean
         default: false
-  push:
+  pull_request:
     branches:
       - ratbranch
     paths:
@@ -20,12 +20,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
+      - name: Add Processing label
+        if: github.event_name == 'pull_request'
+        run: gh pr edit ${{ github.event.pull_request.number }} --add-label "Processing"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.PAT }}
           persist-credentials: true
 
@@ -45,9 +53,12 @@ jobs:
             fi
           fi
 
-          # Get current commit's changed GIFs (to exclude from initial list population)
-          # Always use HEAD since this workflow amends commits, making github.event.before unreliable
-          current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
+          # Get changed GIFs - compare against base branch for PRs
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            current_commit_gifs=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -iE '\.gif$' || true)
+          else
+            current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
+          fi
 
           # If processed file doesn't exist, create it with all existing GIFs except current commit's
           if [ ! -f "$PROCESSED_FILE" ]; then
@@ -193,8 +204,8 @@ jobs:
             echo "No changes staged, skipping commit"
             echo "committed=false" >> $GITHUB_OUTPUT
           else
-            git commit --amend -m "$(git log -1 --format=%B) [skip ci]"
-            git push --force-with-lease
+            git commit -m "Process GIF files"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
             echo "committed=true" >> $GITHUB_OUTPUT
           fi
 
@@ -217,13 +228,17 @@ jobs:
           # Only commit if the JSON actually changed
           if ! git diff --cached --quiet; then
             if [ "${{ steps.commit.outputs.committed }}" = "true" ]; then
-              # Previous commit happened, amend it
               git commit --amend --no-edit
             else
-              # No previous commit, create a new one
-              git commit -m "Update processed files list [skip ci]"
+              git commit -m "Update processed files list"
             fi
-            git push --force-with-lease
+            git push origin HEAD:${{ github.event.pull_request.head.ref }} --force-with-lease
           else
             echo "Processed list unchanged"
           fi
+
+      - name: Remove Processing label
+        if: always() && github.event_name == 'pull_request'
+        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label "Processing"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
