@@ -1,27 +1,47 @@
 name: Delete Closed PR Branch
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
-    branches:
-      - ratbranch
 
 jobs:
   delete-branch:
     runs-on: ubuntu-latest
-    # Only delete if:
-    # - PR was closed without merging
-    # - Branch is in this repo (not a fork)
-    # - Branch name starts with "emoji/"
-    if: |
-      github.event.pull_request.merged == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.pull_request.head.ref, 'emoji/')
     permissions:
       contents: write
 
     steps:
+      - name: Check conditions
+        id: check
+        run: |
+          echo "PR merged: ${{ github.event.pull_request.merged }}"
+          echo "Head repo: ${{ github.event.pull_request.head.repo.full_name }}"
+          echo "Base repo: ${{ github.repository }}"
+          echo "Head ref: ${{ github.event.pull_request.head.ref }}"
+
+          if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            echo "PR was merged, skipping"
+            echo "should_delete=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "PR is from a fork, skipping"
+            echo "should_delete=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ ! "${{ github.event.pull_request.head.ref }}" == emoji/* ]]; then
+            echo "Branch does not start with emoji/, skipping"
+            echo "should_delete=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "All conditions met, will delete branch"
+          echo "should_delete=true" >> $GITHUB_OUTPUT
+
       - name: Delete branch
+        if: steps.check.outputs.should_delete == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
