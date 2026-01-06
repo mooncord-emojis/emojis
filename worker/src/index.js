@@ -1,4 +1,4 @@
-import { handleDiscordAuth, handleDiscordCallback } from './auth.js';
+import { handleDiscordAuth, handleDiscordCallback, handleRefreshToken } from './auth.js';
 import { handleEmojiSubmission, handleGetFolders } from './github.js';
 
 export default {
@@ -32,6 +32,8 @@ export default {
                 response = await handleDiscordAuth(request, env);
             } else if (path === '/auth/callback' && request.method === 'GET') {
                 response = await handleDiscordCallback(request, env);
+            } else if (path === '/auth/refresh' && request.method === 'POST') {
+                response = await handleRefreshToken(request, env);
             } else if (path === '/api/submit' && request.method === 'POST') {
                 response = await handleEmojiSubmission(request, env);
             } else if (path === '/api/folders' && request.method === 'GET') {

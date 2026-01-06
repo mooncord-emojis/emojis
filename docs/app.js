@@ -44,9 +44,80 @@ const modalBackdrop = document.querySelector('.modal-backdrop');
 
 // State
 let authToken = null;
+let refreshToken = null;
 let currentUsername = null;
 let currentAvatar = null;
 let foldersLoaded = false;
+
+// Check if a JWT token is expired
+function isTokenExpired(token) {
+    if (!token) {
+        return true;
+    }
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expirationTime = payload.exp * 1000;
+        // Consider expired if less than 30 seconds remaining
+        return Date.now() >= expirationTime - 30000;
+    } catch (e) {
+        return true;
+    }
+}
+
+// Refresh the access token using the refresh token
+async function refreshAccessToken() {
+    if (!refreshToken) {
+        return false;
+    }
+
+    try {
+        const response = await fetch(API_BASE_URL + '/auth/refresh', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refreshToken: refreshToken })
+        });
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const data = await response.json();
+        authToken = data.token;
+        localStorage.setItem('authToken', authToken);
+        return true;
+    } catch (e) {
+        console.error('Failed to refresh token:', e);
+        return false;
+    }
+}
+
+// Ensure we have a valid access token, refreshing if needed
+async function ensureValidToken() {
+    if (!isTokenExpired(authToken)) {
+        return true;
+    }
+
+    const refreshed = await refreshAccessToken();
+    if (!refreshed) {
+        clearAuthState();
+        return false;
+    }
+    return true;
+}
+
+// Clear all auth state
+function clearAuthState() {
+    authToken = null;
+    refreshToken = null;
+    currentUsername = null;
+    currentAvatar = null;
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('username');
+    localStorage.removeItem('avatar');
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
@@ -82,6 +153,7 @@ function setupEventListeners() {
 function checkAuthCallback() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    const refresh = urlParams.get('refreshToken');
     const username = urlParams.get('username');
     const avatar = urlParams.get('avatar');
     const error = urlParams.get('error');
@@ -102,11 +174,13 @@ function checkAuthCallback() {
         return;
     }
 
-    if (token && username) {
+    if (token && refresh && username) {
         authToken = token;
+        refreshToken = refresh;
         currentUsername = username;
         currentAvatar = avatar || '';
         localStorage.setItem('authToken', token);
+        localStorage.setItem('refreshToken', refresh);
         localStorage.setItem('username', username);
         localStorage.setItem('avatar', avatar || '');
         showSection('form');
@@ -132,18 +206,32 @@ function updateAccountDisplay() {
 }
 
 // Check for existing session
-function checkExistingSession() {
+async function checkExistingSession() {
     const storedToken = localStorage.getItem('authToken');
+    const storedRefreshToken = localStorage.getItem('refreshToken');
     const storedUsername = localStorage.getItem('username');
     const storedAvatar = localStorage.getItem('avatar');
 
-    if (storedToken && storedUsername) {
-        authToken = storedToken;
-        currentUsername = storedUsername;
-        currentAvatar = storedAvatar || '';
-        showSection('form');
-        updateAccountDisplay();
+    if (!storedRefreshToken || !storedUsername) {
+        return;
     }
+
+    authToken = storedToken;
+    refreshToken = storedRefreshToken;
+    currentUsername = storedUsername;
+    currentAvatar = storedAvatar || '';
+
+    // If access token is expired, try to refresh it
+    if (isTokenExpired(authToken)) {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
+            clearAuthState();
+            return;
+        }
+    }
+
+    showSection('form');
+    updateAccountDisplay();
 }
 
 // Fetch folders from API and build tree UI
@@ -296,10 +384,7 @@ function handleLogin() {
 
 // Handle logout
 function handleLogout() {
-    authToken = null;
-    currentUsername = null;
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('username');
+    clearAuthState();
     showSection('login');
     resetFormFields();
 }
@@ -388,6 +473,13 @@ async function handleConfirmedSubmit() {
     const updateExisting = updateExistingCheckbox.checked;
 
     try {
+        // Ensure we have a valid token before submitting
+        const hasValidToken = await ensureValidToken();
+        if (!hasValidToken) {
+            handleLogin();
+            return;
+        }
+
         // Read file as base64
         const base64Data = await readFileAsBase64(imageFile);
 
@@ -395,7 +487,7 @@ async function handleConfirmedSubmit() {
         const extension = getFileExtension(imageFile.name);
 
         // Submit to API
-        const response = await fetch(API_BASE_URL + '/api/submit', {
+        let response = await fetch(API_BASE_URL + '/api/submit', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -410,20 +502,34 @@ async function handleConfirmedSubmit() {
             })
         });
 
-        const result = await response.json();
-
-        if (!response.ok) {
-            // If unauthorized, token is expired/invalid - redirect to login
-            if (response.status === 401) {
-                localStorage.removeItem('authToken');
-                localStorage.removeItem('username');
-                localStorage.removeItem('avatar');
-                authToken = null;
-                currentUsername = null;
-                currentAvatar = null;
+        // If unauthorized, try refreshing token and retry once
+        if (response.status === 401) {
+            const refreshed = await refreshAccessToken();
+            if (refreshed) {
+                response = await fetch(API_BASE_URL + '/api/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({
+                        emojiName: emojiName,
+                        targetFolder: targetFolder,
+                        imageData: base64Data,
+                        fileExtension: extension,
+                        updateExisting: updateExisting
+                    })
+                });
+            } else {
+                clearAuthState();
                 handleLogin();
                 return;
             }
+        }
+
+        const result = await response.json();
+
+        if (!response.ok) {
             throw new Error(result.error || 'Failed to create pull request');
         }
 
