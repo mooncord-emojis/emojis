@@ -575,6 +575,7 @@
     "Animated/speeders.gif",
     "Animated/speedl.gif",
     "Animated/speedr.gif",
+    "Animated/spongeborpa.gif",
     "Animated/spongepls.gif",
     "Animated/sprays.gif",
     "Animated/startedblasting.gif",
@@ -717,5 +718,7 @@
     "Zero Width/vp00.gif",
     "Zero Width/yipee00.gif"
   ],
-  "webps": []
+  "webps": [
+    "Animated/spongeborpa.webp"
+  ]
 }
