@@ -23,12 +23,6 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Add Processing label
-        if: github.event_name == 'pull_request'
-        run: gh pr edit ${{ github.event.pull_request.number }} --add-label "Processing"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -36,6 +30,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.PAT }}
           persist-credentials: true
+
+      - name: Add Processing label
+        if: github.event_name == 'pull_request'
+        run: gh pr edit ${{ github.event.pull_request.number }} --add-label "Processing"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y gifsicle ffmpeg webp imagemagick jq
