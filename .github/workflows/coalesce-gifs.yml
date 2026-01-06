@@ -11,9 +11,6 @@ on:
   pull_request:
     branches:
       - ratbranch
-    paths:
-      - '**.gif'
-      - '**.GIF'
 
 jobs:
   coalesce:
