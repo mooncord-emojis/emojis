@@ -413,6 +413,17 @@ async function handleConfirmedSubmit() {
         const result = await response.json();
 
         if (!response.ok) {
+            // If unauthorized, token is expired/invalid - redirect to login
+            if (response.status === 401) {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('username');
+                localStorage.removeItem('avatar');
+                authToken = null;
+                currentUsername = null;
+                currentAvatar = null;
+                handleLogin();
+                return;
+            }
             throw new Error(result.error || 'Failed to create pull request');
         }
 

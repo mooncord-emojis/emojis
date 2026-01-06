@@ -119,7 +119,7 @@ export async function handleDiscordCallback(request, env) {
         })
             .setProtectedHeader({ alg: 'HS256' })
             .setIssuedAt()
-            .setExpirationTime('1h')
+            .setExpirationTime('30d')
             .sign(jwtSecret);
 
         // Build avatar URL
