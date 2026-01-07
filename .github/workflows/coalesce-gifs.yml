@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       specific_file:
-        description: 'Process a specific file (e.g., "Animated/happy.gif")'
+        description: 'Process a specific file (e.g., "Animated/joel.gif")'
         required: false
         type: string
       force_reprocess:
