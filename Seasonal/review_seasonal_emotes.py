@@ -462,7 +462,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    repoPath = Path(__file__).parent.resolve()
+    repoPath = Path(__file__).parent.parent.resolve()
     seasonalDir = repoPath / "Seasonal"
 
     print("=" * 60)

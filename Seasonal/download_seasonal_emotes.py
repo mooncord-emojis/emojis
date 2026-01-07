@@ -148,7 +148,7 @@ def downloadEmote(url: str, destPath: Path) -> bool:
 
 
 def main():
-    repoPath = Path(__file__).parent.resolve()
+    repoPath = Path(__file__).parent.parent.resolve()
 
     print("=" * 60)
     print("7TV Seasonal Emote Downloader")
