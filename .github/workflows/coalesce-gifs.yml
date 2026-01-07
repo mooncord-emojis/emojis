@@ -205,7 +205,7 @@ jobs:
             echo "committed=false" >> $GITHUB_OUTPUT
           else
             git commit -m "Process GIF files [skip ci]"
-            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+            git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
             echo "committed=true" >> $GITHUB_OUTPUT
           fi
 
@@ -232,7 +232,7 @@ jobs:
             else
               git commit -m "Update processed files list [skip ci]"
             fi
-            git push origin HEAD:${{ github.event.pull_request.head.ref }} --force-with-lease
+            git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }} --force-with-lease
           else
             echo "Processed list unchanged"
           fi
