@@ -836,6 +836,12 @@ h2 {
     min-width: 0;
 }
 
+.submission-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .submission-name {
     color: #fff;
     font-weight: 600;
@@ -843,6 +849,50 @@ h2 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Check status indicators */
+.check-status {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 50%;
+}
+
+.check-success {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.check-failure {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
+.check-pending {
+    background: rgba(241, 196, 15, 0.2);
+    color: #f1c40f;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.check-none {
+    background: rgba(136, 136, 136, 0.2);
+    color: #888;
+}
+
+.check-unknown {
+    background: rgba(136, 136, 136, 0.2);
+    color: #888;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 .submission-folder {

@@ -440,28 +440,72 @@ export async function handleGetUserSubmissions(request, env) {
 
         const allPrs = await response.json();
 
-        const userSubmissions = allPrs
-            .filter(pr => {
-                const submitter = extractSubmitterFromBody(pr.body);
-                return submitter === authPayload.username;
-            })
-            .map(pr => {
-                const emojiInfo = extractEmojiInfoFromBody(pr.body);
-                const imageMatch = pr.body ? pr.body.match(/!\[[^\]]*\]\(([^)]+)\)/) : null;
-                return {
-                    number: pr.number,
-                    title: pr.title,
-                    emojiName: emojiInfo.emojiName,
-                    folder: emojiInfo.folder,
-                    imageUrl: imageMatch ? imageMatch[1] : null,
-                    htmlUrl: pr.html_url,
-                    createdAt: pr.created_at,
-                    labels: pr.labels.map(label => ({
-                        name: label.name,
-                        color: label.color
-                    }))
-                };
-            });
+        const userPrs = allPrs.filter(pr => {
+            const submitter = extractSubmitterFromBody(pr.body);
+            return submitter === authPayload.username;
+        });
+
+        // Fetch check runs for each user's PR in parallel
+        const userSubmissions = await Promise.all(userPrs.map(async pr => {
+            const emojiInfo = extractEmojiInfoFromBody(pr.body);
+            const imageMatch = pr.body ? pr.body.match(/!\[[^\]]*\]\(([^)]+)\)/) : null;
+
+            // Fetch check runs for this PR's head commit
+            let checkStatus = { state: 'unknown', checks: [] };
+            try {
+                const checksResponse = await fetch(
+                    `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/commits/${pr.head.sha}/check-runs`,
+                    { headers }
+                );
+                if (checksResponse.ok) {
+                    const checksData = await checksResponse.json();
+                    const checks = checksData.check_runs || [];
+
+                    // Determine overall status
+                    const hasFailure = checks.some(c => c.conclusion === 'failure' || c.conclusion === 'cancelled' || c.conclusion === 'timed_out');
+                    const hasPending = checks.some(c => c.status === 'queued' || c.status === 'in_progress');
+                    const allSuccess = checks.length > 0 && checks.every(c => c.conclusion === 'success' || c.conclusion === 'skipped');
+
+                    let overallState = 'unknown';
+                    if (hasFailure) {
+                        overallState = 'failure';
+                    } else if (hasPending) {
+                        overallState = 'pending';
+                    } else if (allSuccess) {
+                        overallState = 'success';
+                    } else if (checks.length === 0) {
+                        overallState = 'none';
+                    }
+
+                    checkStatus = {
+                        state: overallState,
+                        checks: checks.map(c => ({
+                            name: c.name,
+                            status: c.status,
+                            conclusion: c.conclusion,
+                            detailsUrl: c.details_url || c.html_url
+                        }))
+                    };
+                }
+            } catch (checkErr) {
+                console.error('Error fetching checks for PR', pr.number, checkErr);
+            }
+
+            return {
+                number: pr.number,
+                title: pr.title,
+                emojiName: emojiInfo.emojiName,
+                folder: emojiInfo.folder,
+                imageUrl: imageMatch ? imageMatch[1] : null,
+                htmlUrl: pr.html_url,
+                createdAt: pr.created_at,
+                labels: pr.labels.map(label => ({
+                    name: label.name,
+                    color: label.color
+                })),
+                checkStatus: checkStatus
+            };
+        }));
 
         return new Response(JSON.stringify({ submissions: userSubmissions }), {
             status: 200,

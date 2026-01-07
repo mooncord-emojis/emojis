@@ -544,6 +544,13 @@ function detectSubmissionChanges(oldList, newList) {
         if (oldLabels !== newLabels) {
             return true;
         }
+
+        // Check for check status changes
+        const oldCheckState = oldItem.checkStatus ? oldItem.checkStatus.state : 'unknown';
+        const newCheckState = newItem.checkStatus ? newItem.checkStatus.state : 'unknown';
+        if (oldCheckState !== newCheckState) {
+            return true;
+        }
     }
 
     return false;
@@ -707,9 +714,10 @@ async function handleConfirmedSubmit() {
             throw new Error(result.error || 'Failed to create pull request');
         }
 
-        // Success
-        prLink.href = result.prUrl;
-        showSection('success');
+        // Success - reset form and switch to My Submissions tab
+        resetFormFields();
+        showSection('form');
+        switchTab('mySubmissions');
 
     } catch (err) {
         console.error('Submission error:', err);
@@ -822,12 +830,48 @@ function renderSubmissionsList() {
             labelsHtml += '</div>';
         }
 
+        // Build check status indicator
+        let checkStatusHtml = '';
+        if (submission.checkStatus) {
+            const state = submission.checkStatus.state;
+            let icon = '';
+            let statusClass = '';
+            let title = '';
+
+            if (state === 'success') {
+                icon = '✓';
+                statusClass = 'check-success';
+                title = 'All checks passed';
+            } else if (state === 'failure') {
+                icon = '✕';
+                statusClass = 'check-failure';
+                title = 'Some checks failed';
+            } else if (state === 'pending') {
+                icon = '●';
+                statusClass = 'check-pending';
+                title = 'Checks running';
+            } else if (state === 'none') {
+                icon = '○';
+                statusClass = 'check-none';
+                title = 'No checks';
+            } else {
+                icon = '?';
+                statusClass = 'check-unknown';
+                title = 'Unknown status';
+            }
+
+            checkStatusHtml = '<span class="check-status ' + statusClass + '" title="' + title + '">' + icon + '</span>';
+        }
+
         card.innerHTML = `
             <div class="submission-image">
                 <img src="${submission.imageUrl || ''}" alt="${submission.emojiName || 'Emoji'}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22><rect fill=%22%23333%22 width=%22100%%22 height=%22100%%22/><text x=%2250%%22 y=%2250%%22 fill=%22%23666%22 text-anchor=%22middle%22 dy=%22.3em%22>?</text></svg>'">
             </div>
             <div class="submission-info">
-                <div class="submission-name">${submission.emojiName || 'Unknown'}</div>
+                <div class="submission-name-row">
+                    ${checkStatusHtml}
+                    <span class="submission-name">${submission.emojiName || 'Unknown'}</span>
+                </div>
                 <div class="submission-folder">${submission.folder || 'Unknown folder'}</div>
                 ${labelsHtml}
             </div>
