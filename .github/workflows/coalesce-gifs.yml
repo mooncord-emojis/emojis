@@ -3,6 +3,10 @@ name: Coalesce GIF Frames
 on:
   workflow_dispatch:
     inputs:
+      specific_file:
+        description: 'Process a specific file (e.g., "Animated/happy.gif")'
+        required: false
+        type: string
       force_reprocess:
         description: 'Force reprocess all GIFs (clears processed list)'
         required: false
@@ -19,6 +23,9 @@ jobs:
       contents: write
       pull-requests: write
       checks: write
+
+    env:
+      TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
     steps:
       - name: Checkout repository
@@ -39,148 +46,22 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gifsicle imagemagick jq
 
       - name: Get files to process
-        id: files-to-process
+        id: files
+        run: .github/scripts/find-unprocessed.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PROCESSED_FILE=".github/processed-files.json"
-
-          # Force reprocess: clear the GIFs list
-          if [ "${{ github.event.inputs.force_reprocess }}" = "true" ]; then
-            echo "Force reprocess requested - clearing GIF list"
-            if [ -f "$PROCESSED_FILE" ]; then
-              jq '.gifs = []' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp" && mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
-            fi
-          fi
-
-          # Get changed GIFs - use GitHub API for PRs (faster, no need for full git history)
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            current_commit_gifs=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files --jq '.[].filename' | grep -iE '\.gif$' || true)
-          else
-            current_commit_gifs=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -iE '\.gif$' || true)
-          fi
-
-          # If processed file doesn't exist, create it with all existing GIFs except current commit's
-          if [ ! -f "$PROCESSED_FILE" ]; then
-            echo "Creating processed-files.json..."
-            mkdir -p .github
-
-            # Get all GIFs in repo
-            all_gifs=$(find . -type f -iname "*.gif" | sed 's|^\./||' | sort)
-
-            # Build initial list excluding current commit's files
-            initial_gifs="[]"
-            while IFS= read -r gif; do
-              [ -z "$gif" ] && continue
-              # Check if this GIF is in current commit (should be processed, not skipped)
-              if ! echo "$current_commit_gifs" | grep -qxF "$gif"; then
-                initial_gifs=$(echo "$initial_gifs" | jq --arg f "$gif" '. + [$f]')
-              fi
-            done <<< "$all_gifs"
-
-            echo "{\"gifs\": $initial_gifs, \"webps\": []}" | jq '.' > "$PROCESSED_FILE"
-            echo "Created with $(echo "$initial_gifs" | jq 'length') pre-existing GIFs"
-          fi
-
-          # Get all GIFs in repo
-          all_gifs=$(find . -type f -iname "*.gif" | sed 's|^\./||' | sort)
-
-          # Find GIFs not in processed list
-          unprocessed=""
-          while IFS= read -r gif; do
-            [ -z "$gif" ] && continue
-            if ! jq -e --arg f "$gif" '.gifs | index($f)' "$PROCESSED_FILE" > /dev/null 2>&1; then
-              unprocessed="${unprocessed}${gif}"$'\n'
-            fi
-          done <<< "$all_gifs"
-
-          echo "GIFs to process:"
-          echo "$unprocessed"
-          echo "unprocessed<<EOF" >> $GITHUB_OUTPUT
-          echo "$unprocessed" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          FILE_TYPE: gif
+          SPECIFIC_FILE: ${{ github.event.inputs.specific_file }}
+          FORCE_REPROCESS: ${{ github.event.inputs.force_reprocess }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
 
       - name: Coalesce GIF files
         id: coalesce
-        run: |
-          unprocessed="${{ steps.files-to-process.outputs.unprocessed }}"
-          PROCESSED_FILE=".github/processed-files.json"
-
-          if [ -z "$unprocessed" ]; then
-            echo "No GIF files to process"
-            exit 0
-          fi
-
-          echo "$unprocessed" | while read gif; do
-            [ -z "$gif" ] && continue
-            [ ! -f "$gif" ] && echo "Skipping missing file: $gif" && continue
-
-            echo "Processing: $gif"
-            success=false
-
-            frame_count=$(gifsicle --info "$gif" 2>/dev/null | grep -c "image #" || echo "1")
-
-            if [ "$frame_count" -gt 1 ] 2>/dev/null; then
-              echo "  Found $frame_count frames, coalescing..."
-
-              # First pass: ImageMagick coalesce
-              if convert "$gif" -coalesce "${gif}.tmp" 2>/dev/null; then
-                mv "${gif}.tmp" "$gif"
-                echo "  ImageMagick coalesce done"
-              fi
-
-              # Second pass: gifsicle unoptimize
-              if gifsicle --unoptimize "$gif" -o "${gif}.tmp" 2>/dev/null; then
-                mv "${gif}.tmp" "$gif"
-                echo "  Gifsicle unoptimize done"
-                success=true
-
-                file_size=$(stat -c%s "$gif")
-                max_size=10485760
-
-                if [ "$file_size" -gt "$max_size" ]; then
-                  echo "  File is $(($file_size / 1024 / 1024)) MB, scaling down..."
-
-                  for scale in 0.9 0.8 0.7 0.6 0.5 0.4 0.3; do
-                    echo "    Trying scale ${scale}..."
-                    if gifsicle --scale "$scale" "$gif" -o "${gif}.tmp" 2>/dev/null; then
-                      new_size=$(stat -c%s "${gif}.tmp")
-                      echo "    Result: $(($new_size / 1024 / 1024)) MB"
-
-                      if [ "$new_size" -le "$max_size" ]; then
-                        mv "${gif}.tmp" "$gif"
-                        echo "  Scaled to ${scale}x successfully"
-                        break
-                      fi
-                      rm -f "${gif}.tmp"
-                    else
-                      echo "    Scale failed"
-                      break
-                    fi
-                  done
-                fi
-              else
-                rm -f "${gif}.tmp"
-                echo "  Failed to coalesce"
-              fi
-            else
-              echo "  Single frame or not animated, marking as processed"
-              success=true
-            fi
-
-            # Track successfully processed files
-            if [ "$success" = true ]; then
-              echo "$gif" >> /tmp/processed-gifs.txt
-              echo "  Successfully processed"
-            fi
-          done
-
-          # Output the list of successfully processed files
-          if [ -f /tmp/processed-gifs.txt ]; then
-            echo "processed<<EOF" >> $GITHUB_OUTPUT
-            cat /tmp/processed-gifs.txt >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
+        run: .github/scripts/process-gifs.sh
+        env:
+          UNPROCESSED: ${{ steps.files.outputs.unprocessed }}
 
       - name: Check for changes
         id: changes
@@ -194,65 +75,26 @@ jobs:
       - name: Commit changes
         id: commit
         if: steps.changes.outputs.has_changes == 'true'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add -A
-
-          # Check if there's actually anything staged to commit
-          if git diff --cached --quiet; then
-            echo "No changes staged, skipping commit"
-            echo "committed=false" >> $GITHUB_OUTPUT
-          else
-            git commit -m "Process GIF files [skip ci]"
-            git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}
-            echo "committed=true" >> $GITHUB_OUTPUT
-          fi
+        run: .github/scripts/commit-changes.sh
+        env:
+          TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
+          COMMIT_MESSAGE: "Process GIF files [skip ci]"
 
       - name: Update processed files list
         if: steps.coalesce.outputs.processed != ''
-        run: |
-          PROCESSED_FILE=".github/processed-files.json"
-          processed="${{ steps.coalesce.outputs.processed }}"
-
-          echo "Adding successfully processed files to processed list..."
-          while IFS= read -r gif; do
-            [ -z "$gif" ] && continue
-            jq --arg f "$gif" '.gifs += [$f] | .gifs |= unique' "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
-            mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
-            echo "  Added: $gif"
-          done <<< "$processed"
-
-          git add "$PROCESSED_FILE"
-
-          # Only commit if the JSON actually changed
-          if ! git diff --cached --quiet; then
-            if [ "${{ steps.commit.outputs.committed }}" = "true" ]; then
-              git commit --amend --no-edit
-            else
-              git commit -m "Update processed files list [skip ci]"
-            fi
-            git push origin HEAD:${{ github.event.pull_request.head.ref || github.ref_name }} --force-with-lease
-          else
-            echo "Processed list unchanged"
-          fi
+        run: .github/scripts/update-processed-list.sh
+        env:
+          FILE_TYPE: gif
+          PROCESSED: ${{ steps.coalesce.outputs.processed }}
+          PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
+          TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
 
       - name: Create check runs on new commit
         if: steps.coalesce.outputs.processed != '' && github.event_name == 'pull_request'
+        run: .github/scripts/create-check-runs.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          newSha=$(git rev-parse HEAD)
-          echo "Creating check runs on commit $newSha"
-
-          for checkName in coalesce convert check-duplicates; do
-            gh api repos/${{ github.repository }}/check-runs \
-              -f name="$checkName" \
-              -f head_sha="$newSha" \
-              -f status="completed" \
-              -f conclusion="success"
-            echo "  Created check run: $checkName"
-          done
+          REPOSITORY: ${{ github.repository }}
 
       - name: Remove Processing label
         if: always() && github.event_name == 'pull_request'

@@ -11,40 +11,16 @@ jobs:
       contents: write
 
     steps:
-      - name: Check conditions
-        id: check
-        run: |
-          echo "PR merged: ${{ github.event.pull_request.merged }}"
-          echo "Head repo: ${{ github.event.pull_request.head.repo.full_name }}"
-          echo "Base repo: ${{ github.repository }}"
-          echo "Head ref: ${{ github.event.pull_request.head.ref }}"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-          if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
-            echo "PR was merged, skipping"
-            echo "should_delete=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-            echo "PR is from a fork, skipping"
-            echo "should_delete=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          if [[ ! "${{ github.event.pull_request.head.ref }}" == emoji/* ]]; then
-            echo "Branch does not start with emoji/, skipping"
-            echo "should_delete=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          echo "All conditions met, will delete branch"
-          echo "should_delete=true" >> $GITHUB_OUTPUT
-
-      - name: Delete branch
-        if: steps.check.outputs.should_delete == 'true'
+      - name: Delete branch if conditions met
+        run: .github/scripts/delete-pr-branch.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Deleting branch: ${{ github.event.pull_request.head.ref }}"
-          gh api repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }} -X DELETE
-          echo "Successfully deleted branch"
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
