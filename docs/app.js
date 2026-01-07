@@ -821,46 +821,37 @@ function renderSubmissionsList() {
         const card = document.createElement('div');
         card.className = 'submission-card';
 
-        let labelsHtml = '';
-        if (submission.labels && submission.labels.length > 0) {
-            labelsHtml = '<div class="submission-labels">';
-            submission.labels.forEach(function(label) {
-                labelsHtml += '<span class="submission-label" style="background-color: #' + label.color + '">' + label.name + '</span>';
-            });
-            labelsHtml += '</div>';
-        }
-
-        // Build check status indicator
+        // Build check status row
         let checkStatusHtml = '';
         if (submission.checkStatus) {
             const state = submission.checkStatus.state;
             let icon = '';
             let statusClass = '';
-            let title = '';
+            let statusText = '';
 
             if (state === 'success') {
                 icon = '✓';
                 statusClass = 'check-success';
-                title = 'All checks passed';
+                statusText = 'Passed';
             } else if (state === 'failure') {
                 icon = '✕';
                 statusClass = 'check-failure';
-                title = 'Some checks failed';
+                statusText = 'Failed';
             } else if (state === 'pending') {
                 icon = '●';
                 statusClass = 'check-pending';
-                title = 'Checks running';
+                statusText = 'Running';
             } else if (state === 'none') {
                 icon = '○';
                 statusClass = 'check-none';
-                title = 'No checks';
+                statusText = 'No checks';
             } else {
                 icon = '?';
                 statusClass = 'check-unknown';
-                title = 'Unknown status';
+                statusText = 'Unknown';
             }
 
-            checkStatusHtml = '<span class="check-status ' + statusClass + '" title="' + title + '">' + icon + '</span>';
+            checkStatusHtml = '<div class="submission-status"><span class="status-label">Status:</span> <span class="check-status ' + statusClass + '">' + icon + ' ' + statusText + '</span></div>';
         }
 
         card.innerHTML = `
@@ -868,12 +859,9 @@ function renderSubmissionsList() {
                 <img src="${submission.imageUrl || ''}" alt="${submission.emojiName || 'Emoji'}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22><rect fill=%22%23333%22 width=%22100%%22 height=%22100%%22/><text x=%2250%%22 y=%2250%%22 fill=%22%23666%22 text-anchor=%22middle%22 dy=%22.3em%22>?</text></svg>'">
             </div>
             <div class="submission-info">
-                <div class="submission-name-row">
-                    ${checkStatusHtml}
-                    <span class="submission-name">${submission.emojiName || 'Unknown'}</span>
-                </div>
+                <span class="submission-name">${submission.emojiName || 'Unknown'}</span>
                 <div class="submission-folder">${submission.folder || 'Unknown folder'}</div>
-                ${labelsHtml}
+                ${checkStatusHtml}
             </div>
             <div class="submission-actions">
                 <a href="${submission.htmlUrl}" target="_blank" class="submission-btn view-btn" title="View PR">View</a>
