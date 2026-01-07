@@ -73,6 +73,9 @@ const closeCancelBtn = document.getElementById('closeCancelBtn');
 const closeConfirmBtn = document.getElementById('closeConfirmBtn');
 const closeModalBackdrop = document.querySelector('.close-modal-backdrop');
 
+// Toast container
+const toastContainer = document.getElementById('toastContainer');
+
 // State
 let authToken = null;
 let refreshToken = null;
@@ -85,6 +88,23 @@ let editingSubmission = null;
 let closingSubmission = null;
 let submissionsPollingInterval = null;
 const POLLING_INTERVAL_MS = 5000;
+
+// Show toast notification
+function showToast(message, type) {
+    type = type || 'info';
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.textContent = message;
+    toastContainer.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(function() {
+        toast.classList.add('toast-out');
+        setTimeout(function() {
+            toast.remove();
+        }, 300);
+    }, 3000);
+}
 
 // Check if a JWT token is expired
 function isTokenExpired(token) {
@@ -237,7 +257,7 @@ function checkAuthCallback() {
 
     if (error) {
         showSection('login');
-        alert('Login failed: ' + error);
+        showToast('Login failed: ' + error, 'error');
         return;
     }
 
@@ -582,7 +602,7 @@ function handleImageSelect(event) {
     // Validate file size (10MB max)
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
-        alert('File is too large. Maximum size is 10MB.');
+        showToast('File is too large. Maximum size is 10MB.', 'error');
         imageFileInput.value = '';
         previewContainer.classList.add('hidden');
         return;
@@ -591,7 +611,7 @@ function handleImageSelect(event) {
     // Validate file type
     const validTypes = ['image/png', 'image/gif', 'image/webp', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
-        alert('Invalid file type. Please upload a GIF, JPG, PNG, or WEBP image.');
+        showToast('Invalid file type. Please upload a GIF, JPG, PNG, or WEBP image.', 'error');
         imageFileInput.value = '';
         previewContainer.classList.add('hidden');
         return;
@@ -615,14 +635,14 @@ function handleFormSubmit(event) {
     const imageFile = imageFileInput.files[0];
 
     if (!emojiName || !targetFolder || !imageFile) {
-        alert('Please fill in all fields.');
+        showToast('Please fill in all fields.', 'error');
         return;
     }
 
     // Validate emoji name - disallow characters invalid in filenames
     const invalidChars = /[\/\\:*?"<>|]/;
     if (invalidChars.test(emojiName)) {
-        alert('Emoji name cannot contain: / \\ : * ? " < > |');
+        showToast('Emoji name cannot contain: / \\ : * ? " < > |', 'error');
         return;
     }
 
@@ -832,26 +852,26 @@ function renderSubmissionsList() {
             if (state === 'success') {
                 icon = '✓';
                 statusClass = 'check-success';
-                statusText = 'Passed';
+                statusText = 'Automated checks passed';
             } else if (state === 'failure') {
                 icon = '✕';
                 statusClass = 'check-failure';
-                statusText = 'Failed';
+                statusText = 'Automated checks failed';
             } else if (state === 'pending') {
                 icon = '●';
                 statusClass = 'check-pending';
-                statusText = 'Running';
+                statusText = 'Automated checks running';
             } else if (state === 'none') {
                 icon = '○';
                 statusClass = 'check-none';
-                statusText = 'No checks';
+                statusText = 'No automated checks';
             } else {
                 icon = '?';
                 statusClass = 'check-unknown';
-                statusText = 'Unknown';
+                statusText = 'Check status unknown';
             }
 
-            checkStatusHtml = '<div class="submission-status"><span class="status-label">Status:</span> <span class="check-status ' + statusClass + '">' + icon + ' ' + statusText + '</span></div>';
+            checkStatusHtml = '<div class="submission-status"><span class="check-status ' + statusClass + '">' + icon + ' ' + statusText + '</span></div>';
         }
 
         card.innerHTML = `
@@ -983,7 +1003,7 @@ function handleEditImageSelect(event) {
 
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
-        alert('File is too large. Maximum size is 10MB.');
+        showToast('File is too large. Maximum size is 10MB.', 'error');
         editImageFileInput.value = '';
         editPreviewContainer.classList.add('hidden');
         return;
@@ -991,7 +1011,7 @@ function handleEditImageSelect(event) {
 
     const validTypes = ['image/png', 'image/gif', 'image/webp', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
-        alert('Invalid file type. Please upload a GIF, JPG, PNG, or WEBP image.');
+        showToast('Invalid file type. Please upload a GIF, JPG, PNG, or WEBP image.', 'error');
         editImageFileInput.value = '';
         editPreviewContainer.classList.add('hidden');
         return;
@@ -1020,18 +1040,18 @@ async function handleEditSubmit() {
     const hasImageChange = newImageFile !== undefined;
 
     if (!hasNameChange && !hasFolderChange && !hasImageChange) {
-        alert('Please make at least one change.');
+        showToast('Please make at least one change.', 'error');
         return;
     }
 
     if (hasNameChange) {
         const invalidChars = /[\/\\:*?"<>|]/;
         if (invalidChars.test(newName)) {
-            alert('Emoji name cannot contain: / \\ : * ? " < > |');
+            showToast('Emoji name cannot contain: / \\ : * ? " < > |', 'error');
             return;
         }
         if (newName.length < 2 || newName.length > 80) {
-            alert('Emoji name must be between 2 and 80 characters.');
+            showToast('Emoji name must be between 2 and 80 characters.', 'error');
             return;
         }
     }
@@ -1075,10 +1095,10 @@ async function handleEditSubmit() {
 
         hideEditModal();
         loadUserSubmissions();
-        alert('Submission updated successfully!');
+        showToast('Submission updated successfully!', 'success');
     } catch (err) {
         console.error('Edit submission error:', err);
-        alert('Failed to update: ' + err.message);
+        showToast('Failed to update: ' + err.message, 'error');
     } finally {
         editSubmitBtn.disabled = false;
         editSubmitBtn.textContent = 'Save Changes';
@@ -1130,10 +1150,10 @@ async function handleCloseSubmission() {
 
         hideCloseModal();
         loadUserSubmissions();
-        alert('Submission closed successfully.');
+        showToast('Submission closed successfully.', 'success');
     } catch (err) {
         console.error('Close submission error:', err);
-        alert('Failed to close: ' + err.message);
+        showToast('Failed to close: ' + err.message, 'error');
     } finally {
         closeConfirmBtn.disabled = false;
         closeConfirmBtn.textContent = 'Close Submission';

@@ -1013,6 +1013,72 @@ h2 {
     cursor: not-allowed;
 }
 
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    padding: 14px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
+    animation: toastIn 0.3s ease-out;
+    max-width: 400px;
+    text-align: center;
+}
+
+.toast.toast-out {
+    animation: toastOut 0.3s ease-in forwards;
+}
+
+.toast-success {
+    background: rgba(46, 204, 113, 0.95);
+    color: #fff;
+}
+
+.toast-error {
+    background: rgba(231, 76, 60, 0.95);
+    color: #fff;
+}
+
+.toast-info {
+    background: rgba(88, 101, 242, 0.95);
+    color: #fff;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes toastOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+}
+
 /* Responsive */
 @media (max-width: 480px) {
     .container {
