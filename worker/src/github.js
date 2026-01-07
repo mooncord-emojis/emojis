@@ -389,3 +389,450 @@ async function createPullRequest(githubToken, emojiName, targetFolder, imageData
 
     return pr.html_url;
 }
+
+// Extract username from PR body
+function extractSubmitterFromBody(body) {
+    if (!body) {
+        return null;
+    }
+    const match = body.match(/\*\*Submitted by:\*\* ([^\s]+) \(via Discord\)/);
+    return match ? match[1] : null;
+}
+
+// Extract emoji info from PR body
+function extractEmojiInfoFromBody(body) {
+    if (!body) {
+        return { emojiName: null, folder: null };
+    }
+    const nameMatch = body.match(/\*\*Emoji Name:\*\* `([^`]+)`/);
+    const folderMatch = body.match(/\*\*Target Folder:\*\* `([^`]+)\/?`/);
+    return {
+        emojiName: nameMatch ? nameMatch[1] : null,
+        folder: folderMatch ? folderMatch[1].replace(/\/$/, '') : null
+    };
+}
+
+// Handle GET /api/submissions - list user's submissions
+export async function handleGetUserSubmissions(request, env) {
+    const authPayload = await verifyAuthToken(request, env);
+    if (!authPayload) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    const headers = {
+        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Mooncord-Emoji-Submission-Bot'
+    };
+
+    try {
+        const response = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls?state=open&per_page=100`,
+            { headers }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch pull requests');
+        }
+
+        const allPrs = await response.json();
+
+        const userSubmissions = allPrs
+            .filter(pr => {
+                const submitter = extractSubmitterFromBody(pr.body);
+                return submitter === authPayload.username;
+            })
+            .map(pr => {
+                const emojiInfo = extractEmojiInfoFromBody(pr.body);
+                const imageMatch = pr.body ? pr.body.match(/!\[[^\]]*\]\(([^)]+)\)/) : null;
+                return {
+                    number: pr.number,
+                    title: pr.title,
+                    emojiName: emojiInfo.emojiName,
+                    folder: emojiInfo.folder,
+                    imageUrl: imageMatch ? imageMatch[1] : null,
+                    htmlUrl: pr.html_url,
+                    createdAt: pr.created_at,
+                    labels: pr.labels.map(label => ({
+                        name: label.name,
+                        color: label.color
+                    }))
+                };
+            });
+
+        return new Response(JSON.stringify({ submissions: userSubmissions }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error fetching submissions:', error);
+        return new Response(JSON.stringify({ error: 'Failed to fetch submissions' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
+
+// Handle PATCH /api/submissions/:number - update a submission
+export async function handleUpdateSubmission(request, env, prNumber) {
+    const authPayload = await verifyAuthToken(request, env);
+    if (!authPayload) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    const headers = {
+        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Mooncord-Emoji-Submission-Bot',
+        'Content-Type': 'application/json'
+    };
+
+    try {
+        // Get the PR details
+        const prResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${prNumber}`,
+            { headers }
+        );
+
+        if (!prResponse.ok) {
+            return new Response(JSON.stringify({ error: 'Pull request not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const pr = await prResponse.json();
+
+        // Verify ownership
+        const submitter = extractSubmitterFromBody(pr.body);
+        if (submitter !== authPayload.username) {
+            return new Response(JSON.stringify({ error: 'You do not own this submission' }), {
+                status: 403,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Parse request body
+        let body;
+        try {
+            body = await request.json();
+        } catch (e) {
+            return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const { newName, newFolder, newImageData, fileExtension } = body;
+        const currentInfo = extractEmojiInfoFromBody(pr.body);
+        const branchName = pr.head.ref;
+
+        const finalName = newName || currentInfo.emojiName;
+        const finalFolder = newFolder || currentInfo.folder;
+
+        // Validate inputs if provided
+        if (newName) {
+            const invalidChars = /[\/\\:*?"<>|]/;
+            if (invalidChars.test(newName)) {
+                return new Response(JSON.stringify({ error: 'Emoji name cannot contain: / \\ : * ? " < > |' }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            if (newName.length < 2 || newName.length > 80) {
+                return new Response(JSON.stringify({ error: 'Emoji name must be between 2 and 80 characters' }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        if (newFolder) {
+            const validFolders = await fetchFoldersFromRepo(env.GITHUB_TOKEN);
+            if (!validFolders.includes(newFolder)) {
+                return new Response(JSON.stringify({ error: 'Invalid target folder' }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        // Get current branch tree
+        const branchRefResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/ref/heads/${branchName}`,
+            { headers }
+        );
+
+        if (!branchRefResponse.ok) {
+            throw new Error('Failed to get branch reference');
+        }
+
+        const branchRef = await branchRefResponse.json();
+        const branchSha = branchRef.object.sha;
+
+        // Get the current commit
+        const commitResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/commits/${branchSha}`,
+            { headers }
+        );
+
+        if (!commitResponse.ok) {
+            throw new Error('Failed to get commit');
+        }
+
+        const currentCommit = await commitResponse.json();
+        const currentTreeSha = currentCommit.tree.sha;
+
+        // Get the current tree to find the existing file
+        const treeResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${currentTreeSha}?recursive=1`,
+            { headers }
+        );
+
+        if (!treeResponse.ok) {
+            throw new Error('Failed to get tree');
+        }
+
+        const treeData = await treeResponse.json();
+
+        // Find the current emoji file
+        const currentPath = `${currentInfo.folder}/${currentInfo.emojiName}`;
+        const existingFile = treeData.tree.find(item =>
+            item.type === 'blob' && item.path.startsWith(currentPath + '.')
+        );
+
+        if (!existingFile) {
+            throw new Error('Could not find existing emoji file');
+        }
+
+        const currentExtension = existingFile.path.split('.').pop();
+        const finalExtension = fileExtension || currentExtension;
+        const newPath = `${finalFolder}/${finalName}.${finalExtension}`;
+
+        // Build tree changes
+        let treeChanges = [];
+        let blobSha = existingFile.sha;
+
+        // If new image data provided, create new blob
+        if (newImageData) {
+            const blobResponse = await fetch(
+                `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/blobs`,
+                {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        content: newImageData,
+                        encoding: 'base64'
+                    })
+                }
+            );
+
+            if (!blobResponse.ok) {
+                throw new Error('Failed to create blob');
+            }
+
+            const blob = await blobResponse.json();
+            blobSha = blob.sha;
+        }
+
+        // If path changed, we need to delete old file and add new one
+        const pathChanged = existingFile.path !== newPath;
+        if (pathChanged) {
+            // Delete old file (set sha to null)
+            treeChanges.push({
+                path: existingFile.path,
+                mode: '100644',
+                type: 'blob',
+                sha: null
+            });
+        }
+
+        // Add the new/updated file
+        treeChanges.push({
+            path: newPath,
+            mode: '100644',
+            type: 'blob',
+            sha: blobSha
+        });
+
+        // Create new tree
+        const newTreeResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/trees`,
+            {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    base_tree: currentTreeSha,
+                    tree: treeChanges
+                })
+            }
+        );
+
+        if (!newTreeResponse.ok) {
+            throw new Error('Failed to create new tree');
+        }
+
+        const newTree = await newTreeResponse.json();
+
+        // Create commit
+        let commitMessage = 'Update emoji submission';
+        if (newName && newFolder) {
+            commitMessage = `Update emoji: renamed to ${finalName} and moved to ${finalFolder}/`;
+        } else if (newName) {
+            commitMessage = `Update emoji: renamed to ${finalName}`;
+        } else if (newFolder) {
+            commitMessage = `Update emoji: moved to ${finalFolder}/`;
+        } else if (newImageData) {
+            commitMessage = `Update emoji: replaced image for ${finalName}`;
+        }
+
+        const newCommitResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/commits`,
+            {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    message: commitMessage,
+                    tree: newTree.sha,
+                    parents: [branchSha]
+                })
+            }
+        );
+
+        if (!newCommitResponse.ok) {
+            throw new Error('Failed to create commit');
+        }
+
+        const newCommit = await newCommitResponse.json();
+
+        // Update branch reference
+        const updateRefResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${branchName}`,
+            {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({
+                    sha: newCommit.sha
+                })
+            }
+        );
+
+        if (!updateRefResponse.ok) {
+            throw new Error('Failed to update branch');
+        }
+
+        // Update PR title and body if name or folder changed
+        if (newName || newFolder) {
+            const imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeURIComponent(finalFolder)}/${finalName}.${finalExtension}`;
+            const prBody = `## Emoji Submission
+
+**Emoji Name:** \`${finalName}\`
+**Target Folder:** \`${finalFolder}/\`
+**Submitted by:** ${authPayload.username} (via Discord)
+
+### Preview
+![${finalName}](${imageUrl})
+
+---
+*This PR was automatically created by the Mooncord Emoji Submission system.*`;
+
+            await fetch(
+                `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${prNumber}`,
+                {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({
+                        title: `Add emoji: ${finalName}`,
+                        body: prBody
+                    })
+                }
+            );
+        }
+
+        return new Response(JSON.stringify({ success: true, message: 'Submission updated' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error updating submission:', error);
+        return new Response(JSON.stringify({ error: error.message || 'Failed to update submission' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
+
+// Handle DELETE /api/submissions/:number - close a submission
+export async function handleCloseSubmission(request, env, prNumber) {
+    const authPayload = await verifyAuthToken(request, env);
+    if (!authPayload) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    const headers = {
+        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Mooncord-Emoji-Submission-Bot',
+        'Content-Type': 'application/json'
+    };
+
+    try {
+        // Get the PR details
+        const prResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${prNumber}`,
+            { headers }
+        );
+
+        if (!prResponse.ok) {
+            return new Response(JSON.stringify({ error: 'Pull request not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const pr = await prResponse.json();
+
+        // Verify ownership
+        const submitter = extractSubmitterFromBody(pr.body);
+        if (submitter !== authPayload.username) {
+            return new Response(JSON.stringify({ error: 'You do not own this submission' }), {
+                status: 403,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Close the PR
+        const closeResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${prNumber}`,
+            {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ state: 'closed' })
+            }
+        );
+
+        if (!closeResponse.ok) {
+            throw new Error('Failed to close pull request');
+        }
+
+        return new Response(JSON.stringify({ success: true, message: 'Submission closed' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error closing submission:', error);
+        return new Response(JSON.stringify({ error: error.message || 'Failed to close submission' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}

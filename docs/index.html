@@ -106,6 +106,19 @@
 
                 <button type="submit" id="submitBtn" class="submit-btn">Submit Emoji</button>
             </form>
+
+            <!-- My Submissions Section -->
+            <div id="submissionsSection" class="submissions-section">
+                <h2>My Submissions</h2>
+                <div id="submissionsLoading" class="submissions-loading">
+                    <div class="spinner-small"></div>
+                    <span>Loading submissions...</span>
+                </div>
+                <div id="submissionsEmpty" class="submissions-empty hidden">
+                    <p>You don't have any open submissions.</p>
+                </div>
+                <div id="submissionsList" class="submissions-list hidden"></div>
+            </div>
         </div>
 
         <div id="statusSection" class="hidden">
@@ -164,6 +177,80 @@
                 <div class="modal-buttons">
                     <button id="confirmCancelBtn" class="modal-btn cancel-btn">Cancel</button>
                     <button id="confirmSubmitBtn" class="modal-btn confirm-btn">Submit</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Submission Modal -->
+        <div id="editModal" class="modal hidden">
+            <div class="modal-backdrop edit-modal-backdrop"></div>
+            <div class="modal-content edit-modal-content">
+                <h2>Edit Submission</h2>
+
+                <div class="form-group">
+                    <label for="editEmojiName">Emoji Name</label>
+                    <input
+                        type="text"
+                        id="editEmojiName"
+                        name="editEmojiName"
+                        minlength="2"
+                        maxlength="80"
+                        placeholder="Leave blank to keep current"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="editTargetFolder">Target Folder</label>
+                    <div id="editFolderTree" class="folder-tree">
+                        <div class="folder-tree-loading">Loading folders...</div>
+                    </div>
+                    <input type="hidden" id="editTargetFolder" name="editTargetFolder">
+                    <small>Select a new folder or leave unselected to keep current</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="editImageFile">Replace Image (optional)</label>
+                    <input
+                        type="file"
+                        id="editImageFile"
+                        name="editImageFile"
+                        accept=".png,.gif,.webp,.jpg,.jpeg"
+                    >
+                    <small>Leave empty to keep current image</small>
+                </div>
+
+                <div id="editPreviewContainer" class="hidden">
+                    <span class="preview-label">New Image Preview</span>
+                    <img id="editImagePreview" alt="New emoji preview">
+                </div>
+
+                <div class="modal-buttons">
+                    <button id="editCancelBtn" class="modal-btn cancel-btn">Cancel</button>
+                    <button id="editSubmitBtn" class="modal-btn confirm-btn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Close Submission Confirmation Modal -->
+        <div id="closeModal" class="modal hidden">
+            <div class="modal-backdrop close-modal-backdrop"></div>
+            <div class="modal-content">
+                <h2>Close Submission</h2>
+                <p>Are you sure you want to close this submission? This will withdraw your pull request.</p>
+
+                <div class="confirm-details">
+                    <div class="confirm-row">
+                        <span class="confirm-label">Emoji Name:</span>
+                        <span id="closeEmojiName" class="confirm-value"></span>
+                    </div>
+                    <div class="confirm-preview">
+                        <img id="closeImagePreview" alt="Emoji preview">
+                    </div>
+                </div>
+
+                <div class="modal-buttons">
+                    <button id="closeCancelBtn" class="modal-btn cancel-btn">Cancel</button>
+                    <button id="closeConfirmBtn" class="modal-btn danger-btn">Close Submission</button>
                 </div>
             </div>
         </div>

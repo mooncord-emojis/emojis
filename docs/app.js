@@ -42,12 +42,42 @@ const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 const confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
 const modalBackdrop = document.querySelector('.modal-backdrop');
 
+// Submissions section elements
+const submissionsSection = document.getElementById('submissionsSection');
+const submissionsLoading = document.getElementById('submissionsLoading');
+const submissionsEmpty = document.getElementById('submissionsEmpty');
+const submissionsList = document.getElementById('submissionsList');
+
+// Edit modal elements
+const editModal = document.getElementById('editModal');
+const editEmojiNameInput = document.getElementById('editEmojiName');
+const editFolderTree = document.getElementById('editFolderTree');
+const editTargetFolderInput = document.getElementById('editTargetFolder');
+const editImageFileInput = document.getElementById('editImageFile');
+const editPreviewContainer = document.getElementById('editPreviewContainer');
+const editImagePreview = document.getElementById('editImagePreview');
+const editCancelBtn = document.getElementById('editCancelBtn');
+const editSubmitBtn = document.getElementById('editSubmitBtn');
+const editModalBackdrop = document.querySelector('.edit-modal-backdrop');
+
+// Close modal elements
+const closeModal = document.getElementById('closeModal');
+const closeEmojiName = document.getElementById('closeEmojiName');
+const closeImagePreview = document.getElementById('closeImagePreview');
+const closeCancelBtn = document.getElementById('closeCancelBtn');
+const closeConfirmBtn = document.getElementById('closeConfirmBtn');
+const closeModalBackdrop = document.querySelector('.close-modal-backdrop');
+
 // State
 let authToken = null;
 let refreshToken = null;
 let currentUsername = null;
 let currentAvatar = null;
 let foldersLoaded = false;
+let editFoldersLoaded = false;
+let userSubmissions = [];
+let editingSubmission = null;
+let closingSubmission = null;
 
 // Check if a JWT token is expired
 function isTokenExpired(token) {
@@ -139,6 +169,17 @@ function setupEventListeners() {
     confirmCancelBtn.addEventListener('click', hideConfirmModal);
     confirmSubmitBtn.addEventListener('click', handleConfirmedSubmit);
     modalBackdrop.addEventListener('click', hideConfirmModal);
+
+    // Edit modal event listeners
+    editCancelBtn.addEventListener('click', hideEditModal);
+    editSubmitBtn.addEventListener('click', handleEditSubmit);
+    editModalBackdrop.addEventListener('click', hideEditModal);
+    editImageFileInput.addEventListener('change', handleEditImageSelect);
+
+    // Close modal event listeners
+    closeCancelBtn.addEventListener('click', hideCloseModal);
+    closeConfirmBtn.addEventListener('click', handleCloseSubmission);
+    closeModalBackdrop.addEventListener('click', hideCloseModal);
 
     // Account dropdown
     accountBtn.addEventListener('click', toggleAccountDropdown);
@@ -356,6 +397,7 @@ function showSection(section) {
             formSection.classList.remove('hidden');
             accountDropdown.classList.remove('hidden');
             loadFolders();
+            loadUserSubmissions();
             break;
         case 'loading':
             statusSection.classList.remove('hidden');
@@ -587,4 +629,349 @@ function resetFormFields() {
         item.classList.remove('selected');
     });
     targetFolderInput.value = '';
+}
+
+// Load user submissions
+async function loadUserSubmissions() {
+    submissionsLoading.classList.remove('hidden');
+    submissionsEmpty.classList.add('hidden');
+    submissionsList.classList.add('hidden');
+
+    try {
+        const hasValidToken = await ensureValidToken();
+        if (!hasValidToken) {
+            return;
+        }
+
+        const response = await fetch(API_BASE_URL + '/api/submissions', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + authToken
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch submissions');
+        }
+
+        const data = await response.json();
+        userSubmissions = data.submissions || [];
+
+        submissionsLoading.classList.add('hidden');
+
+        if (userSubmissions.length === 0) {
+            submissionsEmpty.classList.remove('hidden');
+        } else {
+            renderSubmissionsList();
+            submissionsList.classList.remove('hidden');
+        }
+    } catch (err) {
+        console.error('Failed to load submissions:', err);
+        submissionsLoading.classList.add('hidden');
+        submissionsEmpty.classList.remove('hidden');
+        submissionsEmpty.querySelector('p').textContent = 'Failed to load submissions.';
+    }
+}
+
+// Render submissions list
+function renderSubmissionsList() {
+    submissionsList.innerHTML = '';
+
+    userSubmissions.forEach(function(submission) {
+        const card = document.createElement('div');
+        card.className = 'submission-card';
+
+        let labelsHtml = '';
+        if (submission.labels && submission.labels.length > 0) {
+            labelsHtml = '<div class="submission-labels">';
+            submission.labels.forEach(function(label) {
+                labelsHtml += '<span class="submission-label" style="background-color: #' + label.color + '">' + label.name + '</span>';
+            });
+            labelsHtml += '</div>';
+        }
+
+        card.innerHTML = `
+            <div class="submission-image">
+                <img src="${submission.imageUrl || ''}" alt="${submission.emojiName || 'Emoji'}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22><rect fill=%22%23333%22 width=%22100%%22 height=%22100%%22/><text x=%2250%%22 y=%2250%%22 fill=%22%23666%22 text-anchor=%22middle%22 dy=%22.3em%22>?</text></svg>'">
+            </div>
+            <div class="submission-info">
+                <div class="submission-name">${submission.emojiName || 'Unknown'}</div>
+                <div class="submission-folder">${submission.folder || 'Unknown folder'}</div>
+                ${labelsHtml}
+            </div>
+            <div class="submission-actions">
+                <a href="${submission.htmlUrl}" target="_blank" class="submission-btn view-btn" title="View PR">View</a>
+                <button class="submission-btn edit-btn" data-pr="${submission.number}" title="Edit">Edit</button>
+                <button class="submission-btn close-btn" data-pr="${submission.number}" title="Close">Close</button>
+            </div>
+        `;
+
+        // Add event listeners
+        card.querySelector('.edit-btn').addEventListener('click', function() {
+            showEditModal(submission);
+        });
+        card.querySelector('.close-btn').addEventListener('click', function() {
+            showCloseModal(submission);
+        });
+
+        submissionsList.appendChild(card);
+    });
+}
+
+// Load folders for edit modal
+async function loadEditFolders() {
+    if (editFoldersLoaded) {
+        return;
+    }
+
+    try {
+        const response = await fetch(API_BASE_URL + '/api/folders');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch folders');
+        }
+
+        const tree = buildFolderTree(data.folders);
+        editFolderTree.innerHTML = '';
+        renderEditFolderTree(tree, editFolderTree);
+        editFoldersLoaded = true;
+    } catch (err) {
+        console.error('Failed to load folders for edit:', err);
+        editFolderTree.innerHTML = '<div class="folder-tree-error">Error loading folders</div>';
+    }
+}
+
+// Render folder tree for edit modal
+function renderEditFolderTree(tree, container) {
+    const sortedKeys = Object.keys(tree).sort();
+
+    sortedKeys.forEach(function(name) {
+        const node = tree[name];
+        const nodeDiv = document.createElement('div');
+        nodeDiv.className = 'folder-node';
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'folder-item';
+        itemDiv.dataset.path = node.fullPath;
+        itemDiv.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name">' + name + '</span>';
+
+        itemDiv.addEventListener('click', function() {
+            selectEditFolder(node.fullPath, itemDiv);
+        });
+
+        nodeDiv.appendChild(itemDiv);
+
+        const hasChildren = Object.keys(node.children).length > 0;
+        if (hasChildren) {
+            const childrenDiv = document.createElement('div');
+            childrenDiv.className = 'folder-children';
+            renderEditFolderTree(node.children, childrenDiv);
+            nodeDiv.appendChild(childrenDiv);
+        }
+
+        container.appendChild(nodeDiv);
+    });
+}
+
+// Handle folder selection in edit modal
+function selectEditFolder(path, element) {
+    const allItems = editFolderTree.querySelectorAll('.folder-item');
+    allItems.forEach(function(item) {
+        item.classList.remove('selected');
+    });
+    element.classList.add('selected');
+    editTargetFolderInput.value = path;
+}
+
+// Show edit modal
+function showEditModal(submission) {
+    editingSubmission = submission;
+    editEmojiNameInput.value = '';
+    editTargetFolderInput.value = '';
+    editImageFileInput.value = '';
+    editPreviewContainer.classList.add('hidden');
+
+    // Clear folder selection
+    const allItems = editFolderTree.querySelectorAll('.folder-item');
+    allItems.forEach(function(item) {
+        item.classList.remove('selected');
+    });
+
+    loadEditFolders();
+    editModal.classList.remove('hidden');
+}
+
+// Hide edit modal
+function hideEditModal() {
+    editModal.classList.add('hidden');
+    editingSubmission = null;
+}
+
+// Handle image selection in edit modal
+function handleEditImageSelect(event) {
+    const file = event.target.files[0];
+
+    if (!file) {
+        editPreviewContainer.classList.add('hidden');
+        return;
+    }
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+        alert('File is too large. Maximum size is 10MB.');
+        editImageFileInput.value = '';
+        editPreviewContainer.classList.add('hidden');
+        return;
+    }
+
+    const validTypes = ['image/png', 'image/gif', 'image/webp', 'image/jpeg'];
+    if (!validTypes.includes(file.type)) {
+        alert('Invalid file type. Please upload a GIF, JPG, PNG, or WEBP image.');
+        editImageFileInput.value = '';
+        editPreviewContainer.classList.add('hidden');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        editImagePreview.src = e.target.result;
+        editPreviewContainer.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+}
+
+// Handle edit submission
+async function handleEditSubmit() {
+    if (!editingSubmission) {
+        return;
+    }
+
+    const newName = editEmojiNameInput.value.trim();
+    const newFolder = editTargetFolderInput.value;
+    const newImageFile = editImageFileInput.files[0];
+
+    const hasNameChange = newName.length > 0;
+    const hasFolderChange = newFolder.length > 0;
+    const hasImageChange = newImageFile !== undefined;
+
+    if (!hasNameChange && !hasFolderChange && !hasImageChange) {
+        alert('Please make at least one change.');
+        return;
+    }
+
+    if (hasNameChange) {
+        const invalidChars = /[\/\\:*?"<>|]/;
+        if (invalidChars.test(newName)) {
+            alert('Emoji name cannot contain: / \\ : * ? " < > |');
+            return;
+        }
+        if (newName.length < 2 || newName.length > 80) {
+            alert('Emoji name must be between 2 and 80 characters.');
+            return;
+        }
+    }
+
+    editSubmitBtn.disabled = true;
+    editSubmitBtn.textContent = 'Saving...';
+
+    try {
+        const hasValidToken = await ensureValidToken();
+        if (!hasValidToken) {
+            handleLogin();
+            return;
+        }
+
+        const requestBody = {};
+        if (hasNameChange) {
+            requestBody.newName = newName;
+        }
+        if (hasFolderChange) {
+            requestBody.newFolder = newFolder;
+        }
+        if (hasImageChange) {
+            requestBody.newImageData = await readFileAsBase64(newImageFile);
+            requestBody.fileExtension = getFileExtension(newImageFile.name);
+        }
+
+        const response = await fetch(API_BASE_URL + '/api/submissions/' + editingSubmission.number, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to update submission');
+        }
+
+        hideEditModal();
+        loadUserSubmissions();
+        alert('Submission updated successfully!');
+    } catch (err) {
+        console.error('Edit submission error:', err);
+        alert('Failed to update: ' + err.message);
+    } finally {
+        editSubmitBtn.disabled = false;
+        editSubmitBtn.textContent = 'Save Changes';
+    }
+}
+
+// Show close confirmation modal
+function showCloseModal(submission) {
+    closingSubmission = submission;
+    closeEmojiName.textContent = submission.emojiName || 'Unknown';
+    closeImagePreview.src = submission.imageUrl || '';
+    closeModal.classList.remove('hidden');
+}
+
+// Hide close modal
+function hideCloseModal() {
+    closeModal.classList.add('hidden');
+    closingSubmission = null;
+}
+
+// Handle close submission
+async function handleCloseSubmission() {
+    if (!closingSubmission) {
+        return;
+    }
+
+    closeConfirmBtn.disabled = true;
+    closeConfirmBtn.textContent = 'Closing...';
+
+    try {
+        const hasValidToken = await ensureValidToken();
+        if (!hasValidToken) {
+            handleLogin();
+            return;
+        }
+
+        const response = await fetch(API_BASE_URL + '/api/submissions/' + closingSubmission.number, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': 'Bearer ' + authToken
+            }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to close submission');
+        }
+
+        hideCloseModal();
+        loadUserSubmissions();
+        alert('Submission closed successfully.');
+    } catch (err) {
+        console.error('Close submission error:', err);
+        alert('Failed to close: ' + err.message);
+    } finally {
+        closeConfirmBtn.disabled = false;
+        closeConfirmBtn.textContent = 'Close Submission';
+    }
 }

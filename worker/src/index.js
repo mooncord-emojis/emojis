@@ -1,5 +1,5 @@
 import { handleDiscordAuth, handleDiscordCallback, handleRefreshToken } from './auth.js';
-import { handleEmojiSubmission, handleGetFolders } from './github.js';
+import { handleEmojiSubmission, handleGetFolders, handleGetUserSubmissions, handleUpdateSubmission, handleCloseSubmission } from './github.js';
 
 export default {
     async fetch(request, env, ctx) {
@@ -15,7 +15,7 @@ export default {
 
         const corsHeaders = {
             'Access-Control-Allow-Origin': allowedOrigin,
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         };
 
@@ -38,6 +38,14 @@ export default {
                 response = await handleEmojiSubmission(request, env);
             } else if (path === '/api/folders' && request.method === 'GET') {
                 response = await handleGetFolders(request, env);
+            } else if (path === '/api/submissions' && request.method === 'GET') {
+                response = await handleGetUserSubmissions(request, env);
+            } else if (path.startsWith('/api/submissions/') && request.method === 'PATCH') {
+                const prNumber = path.split('/')[3];
+                response = await handleUpdateSubmission(request, env, prNumber);
+            } else if (path.startsWith('/api/submissions/') && request.method === 'DELETE') {
+                const prNumber = path.split('/')[3];
+                response = await handleCloseSubmission(request, env, prNumber);
             } else if (path === '/health') {
                 response = new Response(JSON.stringify({ status: 'ok' }), {
                     headers: { 'Content-Type': 'application/json' }
