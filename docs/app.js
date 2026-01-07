@@ -42,8 +42,13 @@ const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 const confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
 const modalBackdrop = document.querySelector('.modal-backdrop');
 
-// Submissions section elements
-const submissionsSection = document.getElementById('submissionsSection');
+// Tab elements
+const tabSubmitNew = document.getElementById('tabSubmitNew');
+const tabMySubmissions = document.getElementById('tabMySubmissions');
+const submitNewTab = document.getElementById('submitNewTab');
+const mySubmissionsTab = document.getElementById('mySubmissionsTab');
+
+// Submissions elements
 const submissionsLoading = document.getElementById('submissionsLoading');
 const submissionsEmpty = document.getElementById('submissionsEmpty');
 const submissionsList = document.getElementById('submissionsList');
@@ -78,6 +83,8 @@ let editFoldersLoaded = false;
 let userSubmissions = [];
 let editingSubmission = null;
 let closingSubmission = null;
+let submissionsPollingInterval = null;
+const POLLING_INTERVAL_MS = 5000;
 
 // Check if a JWT token is expired
 function isTokenExpired(token) {
@@ -180,6 +187,25 @@ function setupEventListeners() {
     closeCancelBtn.addEventListener('click', hideCloseModal);
     closeConfirmBtn.addEventListener('click', handleCloseSubmission);
     closeModalBackdrop.addEventListener('click', hideCloseModal);
+
+    // Tab event listeners
+    tabSubmitNew.addEventListener('click', function() {
+        switchTab('submitNew');
+    });
+    tabMySubmissions.addEventListener('click', function() {
+        switchTab('mySubmissions');
+    });
+
+    // Handle page visibility changes for polling
+    document.addEventListener('visibilitychange', function() {
+        const isOnSubmissionsTab = tabMySubmissions.classList.contains('active');
+        if (document.hidden) {
+            stopSubmissionsPolling();
+        } else if (isOnSubmissionsTab) {
+            loadUserSubmissionsQuiet();
+            startSubmissionsPolling();
+        }
+    });
 
     // Account dropdown
     accountBtn.addEventListener('click', toggleAccountDropdown);
@@ -397,7 +423,6 @@ function showSection(section) {
             formSection.classList.remove('hidden');
             accountDropdown.classList.remove('hidden');
             loadFolders();
-            loadUserSubmissions();
             break;
         case 'loading':
             statusSection.classList.remove('hidden');
@@ -415,6 +440,113 @@ function showSection(section) {
             accountDropdown.classList.remove('hidden');
             break;
     }
+}
+
+// Switch between tabs
+function switchTab(tab) {
+    tabSubmitNew.classList.remove('active');
+    tabMySubmissions.classList.remove('active');
+    submitNewTab.classList.add('hidden');
+    mySubmissionsTab.classList.add('hidden');
+
+    if (tab === 'submitNew') {
+        tabSubmitNew.classList.add('active');
+        submitNewTab.classList.remove('hidden');
+        stopSubmissionsPolling();
+    } else if (tab === 'mySubmissions') {
+        tabMySubmissions.classList.add('active');
+        mySubmissionsTab.classList.remove('hidden');
+        loadUserSubmissions();
+        startSubmissionsPolling();
+    }
+}
+
+// Start polling for submission updates
+function startSubmissionsPolling() {
+    stopSubmissionsPolling();
+    submissionsPollingInterval = setInterval(function() {
+        if (!document.hidden) {
+            loadUserSubmissionsQuiet();
+        }
+    }, POLLING_INTERVAL_MS);
+}
+
+// Stop polling
+function stopSubmissionsPolling() {
+    if (submissionsPollingInterval) {
+        clearInterval(submissionsPollingInterval);
+        submissionsPollingInterval = null;
+    }
+}
+
+// Load submissions without showing loading indicator (for polling)
+async function loadUserSubmissionsQuiet() {
+    try {
+        const hasValidToken = await ensureValidToken();
+        if (!hasValidToken) {
+            return;
+        }
+
+        const response = await fetch(API_BASE_URL + '/api/submissions', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + authToken
+            }
+        });
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+        const newSubmissions = data.submissions || [];
+
+        const hasChanges = detectSubmissionChanges(userSubmissions, newSubmissions);
+        if (hasChanges) {
+            userSubmissions = newSubmissions;
+            if (userSubmissions.length === 0) {
+                submissionsList.classList.add('hidden');
+                submissionsEmpty.classList.remove('hidden');
+            } else {
+                submissionsEmpty.classList.add('hidden');
+                renderSubmissionsList();
+                submissionsList.classList.remove('hidden');
+            }
+        }
+    } catch (err) {
+        console.error('Quiet refresh failed:', err);
+    }
+}
+
+// Detect if submissions have changed
+function detectSubmissionChanges(oldList, newList) {
+    if (oldList.length !== newList.length) {
+        return true;
+    }
+
+    for (let i = 0; i < oldList.length; i++) {
+        const oldItem = oldList[i];
+        const newItem = newList.find(function(s) { return s.number === oldItem.number; });
+
+        if (!newItem) {
+            return true;
+        }
+
+        if (oldItem.emojiName !== newItem.emojiName) {
+            return true;
+        }
+        if (oldItem.folder !== newItem.folder) {
+            return true;
+        }
+
+        const oldLabels = oldItem.labels.map(function(l) { return l.name; }).sort().join(',');
+        const newLabels = newItem.labels.map(function(l) { return l.name; }).sort().join(',');
+        if (oldLabels !== newLabels) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // Handle Discord login

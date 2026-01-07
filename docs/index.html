@@ -56,6 +56,14 @@
         </div>
 
         <div id="formSection" class="hidden">
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button id="tabSubmitNew" class="tab-btn active">Submit New</button>
+                <button id="tabMySubmissions" class="tab-btn">My Submissions</button>
+            </div>
+
+            <!-- Submit New Tab -->
+            <div id="submitNewTab" class="tab-content">
             <form id="emojiForm">
                 <div class="form-group">
                     <label for="emojiName">Emoji Name</label>
@@ -106,10 +114,10 @@
 
                 <button type="submit" id="submitBtn" class="submit-btn">Submit Emoji</button>
             </form>
+            </div>
 
-            <!-- My Submissions Section -->
-            <div id="submissionsSection" class="submissions-section">
-                <h2>My Submissions</h2>
+            <!-- My Submissions Tab -->
+            <div id="mySubmissionsTab" class="tab-content hidden">
                 <div id="submissionsLoading" class="submissions-loading">
                     <div class="spinner-small"></div>
                     <span>Loading submissions...</span>
