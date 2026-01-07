@@ -609,9 +609,9 @@ function handleImageSelect(event) {
     }
 
     // Validate file type
-    const validTypes = ['image/png', 'image/gif', 'image/webp', 'image/jpeg'];
+    const validTypes = ['image/png', 'image/gif', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
-        showToast('Invalid file type. Please upload a GIF, JPG, PNG, or WEBP image.', 'error');
+        showToast('Invalid file type. Please upload a GIF, JPG, or PNG image.', 'error');
         imageFileInput.value = '';
         previewContainer.classList.add('hidden');
         return;
@@ -1022,9 +1022,9 @@ function handleEditImageSelect(event) {
         return;
     }
 
-    const validTypes = ['image/png', 'image/gif', 'image/webp', 'image/jpeg'];
+    const validTypes = ['image/png', 'image/gif', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
-        showToast('Invalid file type. Please upload a GIF, JPG, PNG, or WEBP image.', 'error');
+        showToast('Invalid file type. Please upload a GIF, JPG, or PNG image.', 'error');
         editImageFileInput.value = '';
         editPreviewContainer.classList.add('hidden');
         return;
