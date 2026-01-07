@@ -99,7 +99,7 @@ An emoji with a matching name already exists in the repository:
 
 - ${duplicatePaths}
 
-Please choose a different name for your emoji, or close this PR and submit again.
+Please choose a different name for your emoji and edit it back on the submission site, or close this PR and submit again.
 
 If you intended to update an existing emoji, please resubmit with the "Update Existing Emoji" checkbox checked.
 
@@ -114,4 +114,6 @@ If you intended to update an existing emoji, please resubmit with the "Update Ex
   });
 
   console.log(`PR #${prNumber} has duplicate emoji: ${duplicateNames}`);
+
+  throw new Error(`Duplicate emoji detected: ${duplicateNames}`);
 }
