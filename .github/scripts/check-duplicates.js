@@ -99,7 +99,7 @@ An emoji with a matching name already exists in the repository:
 
 - ${duplicatePaths}
 
-This PR has been automatically closed. Please choose a different name for your emoji and submit again.
+Please choose a different name for your emoji, or close this PR and submit again.
 
 If you intended to update an existing emoji, please resubmit with the "Update Existing Emoji" checkbox checked.
 
@@ -113,12 +113,5 @@ If you intended to update an existing emoji, please resubmit with the "Update Ex
     body: commentBody
   });
 
-  await github.rest.pulls.update({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    pull_number: prNumber,
-    state: 'closed'
-  });
-
-  console.log(`PR #${prNumber} closed due to duplicate emoji: ${duplicateNames}`);
+  console.log(`PR #${prNumber} has duplicate emoji: ${duplicateNames}`);
 }

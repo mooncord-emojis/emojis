@@ -36,12 +36,6 @@ jobs:
           token: ${{ secrets.PAT }}
           persist-credentials: true
 
-      - name: Add Processing label
-        if: github.event_name == 'pull_request'
-        run: gh pr edit ${{ github.event.pull_request.number }} --add-label "Processing"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y gifsicle imagemagick jq
 
@@ -96,8 +90,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
 
-      - name: Remove Processing label
-        if: always() && github.event_name == 'pull_request'
-        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label "Processing"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
