@@ -43,7 +43,7 @@ jobs:
 
       - name: Get files to process
         id: files
-        run: .github/scripts/find-unprocessed.sh
+        run: bash .github/scripts/find-unprocessed.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FILE_TYPE: webp
@@ -54,14 +54,14 @@ jobs:
 
       - name: Convert WebP files
         id: convert
-        run: .github/scripts/convert-webps.sh
+        run: bash .github/scripts/convert-webps.sh
         env:
           UNPROCESSED: ${{ steps.files.outputs.unprocessed }}
 
       - name: Coalesce converted GIFs
         id: coalesce
         if: steps.convert.outputs.convertedGifs != ''
-        run: .github/scripts/process-gifs.sh
+        run: bash .github/scripts/process-gifs.sh
         env:
           UNPROCESSED: ${{ steps.convert.outputs.convertedGifs }}
 
@@ -77,14 +77,14 @@ jobs:
       - name: Commit changes
         id: commit
         if: steps.changes.outputs.has_changes == 'true'
-        run: .github/scripts/commit-changes.sh
+        run: bash .github/scripts/commit-changes.sh
         env:
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
           COMMIT_MESSAGE: "Convert WebP files [skip ci]"
 
       - name: Update processed WebPs list
         if: steps.convert.outputs.processed != ''
-        run: .github/scripts/update-processed-list.sh
+        run: bash .github/scripts/update-processed-list.sh
         env:
           FILE_TYPE: webp
           PROCESSED: ${{ steps.convert.outputs.processed }}
@@ -94,7 +94,7 @@ jobs:
 
       - name: Update processed GIFs list
         if: steps.coalesce.outputs.processed != ''
-        run: .github/scripts/update-processed-list.sh
+        run: bash .github/scripts/update-processed-list.sh
         env:
           FILE_TYPE: gif
           PROCESSED: ${{ steps.coalesce.outputs.processed }}
@@ -103,7 +103,7 @@ jobs:
 
       - name: Create check runs on new commit
         if: (steps.convert.outputs.processed != '' || steps.coalesce.outputs.processed != '') && github.event_name == 'pull_request'
-        run: .github/scripts/create-check-runs.sh
+        run: bash .github/scripts/create-check-runs.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}

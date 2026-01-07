@@ -47,7 +47,7 @@ jobs:
 
       - name: Get files to process
         id: files
-        run: .github/scripts/find-unprocessed.sh
+        run: bash .github/scripts/find-unprocessed.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FILE_TYPE: gif
@@ -59,7 +59,7 @@ jobs:
 
       - name: Coalesce GIF files
         id: coalesce
-        run: .github/scripts/process-gifs.sh
+        run: bash .github/scripts/process-gifs.sh
         env:
           UNPROCESSED: ${{ steps.files.outputs.unprocessed }}
 
@@ -75,14 +75,14 @@ jobs:
       - name: Commit changes
         id: commit
         if: steps.changes.outputs.has_changes == 'true'
-        run: .github/scripts/commit-changes.sh
+        run: bash .github/scripts/commit-changes.sh
         env:
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
           COMMIT_MESSAGE: "Process GIF files [skip ci]"
 
       - name: Update processed files list
         if: steps.coalesce.outputs.processed != ''
-        run: .github/scripts/update-processed-list.sh
+        run: bash .github/scripts/update-processed-list.sh
         env:
           FILE_TYPE: gif
           PROCESSED: ${{ steps.coalesce.outputs.processed }}
@@ -91,7 +91,7 @@ jobs:
 
       - name: Create check runs on new commit
         if: steps.coalesce.outputs.processed != '' && github.event_name == 'pull_request'
-        run: .github/scripts/create-check-runs.sh
+        run: bash .github/scripts/create-check-runs.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}

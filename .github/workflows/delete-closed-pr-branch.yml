@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 1
 
       - name: Delete branch if conditions met
-        run: .github/scripts/delete-pr-branch.sh
+        run: bash .github/scripts/delete-pr-branch.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
