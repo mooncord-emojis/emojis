@@ -1,0 +1,17 @@
+name: Remove Waiting for Author Label
+
+on:
+  pull_request_target:
+    types: [synchronize]
+
+jobs:
+  remove-label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Remove Waiting for Author label
+        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label "Waiting for Author" --repo ${{ github.repository }} || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
