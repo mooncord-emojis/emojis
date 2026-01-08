@@ -1,0 +1,82 @@
+name: Optimize GIF Files
+
+on:
+  workflow_dispatch:
+    inputs:
+      specific_file:
+        description: 'Process a specific file (e.g., "Animated/joel.gif")'
+        required: false
+        type: string
+      force_reprocess:
+        description: 'Force reprocess all GIFs (clears processed list)'
+        required: false
+        type: boolean
+        default: false
+  push:
+    branches:
+      - optimized
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      checks: write
+
+    env:
+      TARGET_BRANCH: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.ref }}
+          token: ${{ secrets.PAT }}
+          persist-credentials: true
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y gifsicle jq
+
+      - name: Get files to process
+        id: files
+        run: bash .github/scripts/find-unprocessed.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FILE_TYPE: gif
+          SPECIFIC_FILE: ${{ github.event.inputs.specific_file }}
+          FORCE_REPROCESS: ${{ github.event.inputs.force_reprocess }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+
+      - name: Optimize GIF files
+        id: optimize
+        run: bash .github/scripts/optimize-gifs.sh
+        env:
+          UNPROCESSED: ${{ steps.files.outputs.unprocessed }}
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit changes
+        id: commit
+        if: steps.changes.outputs.has_changes == 'true'
+        run: bash .github/scripts/commit-changes.sh
+        env:
+          TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
+          COMMIT_MESSAGE: "Optimize GIF files [skip ci]"
+
+      - name: Update processed files list
+        if: steps.optimize.outputs.processed != ''
+        run: bash .github/scripts/update-processed-list.sh
+        env:
+          FILE_TYPE: gif
+          PROCESSED: ${{ steps.optimize.outputs.processed }}
+          PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
+          TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
