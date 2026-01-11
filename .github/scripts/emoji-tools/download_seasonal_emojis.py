@@ -17,6 +17,7 @@ from emoji_utils import (
     get7TVSearchEmojiDownloadUrl,
     printBanner,
     printSeparator,
+    printProgress,
 )
 
 
@@ -94,18 +95,19 @@ def main():
 
     downloaded = 0
     failed = 0
+    total = len(matchingEmojis)
 
-    for name, emoji in matchingEmojis:
+    for i, (name, emoji) in enumerate(matchingEmojis, 1):
         urlInfo = get7TVSearchEmojiDownloadUrl(emoji)
         if not urlInfo:
-            print(f"  Skipping {name}: No download URL found")
+            printProgress(i, total, f"Skipping: {name} (no URL)")
             failed += 1
             continue
 
         url, ext = urlInfo
         destPath = outputDir / f"{name}{ext}"
 
-        print(f"  Downloading: {name}{ext}")
+        printProgress(i, total, f"{name}{ext}")
         if downloadFile(url, destPath):
             downloaded += 1
         else:

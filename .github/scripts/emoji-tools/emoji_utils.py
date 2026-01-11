@@ -518,3 +518,13 @@ def printBanner(title: str, subtitle: str = None):
 def printSeparator():
     """Print a separator line."""
     print("-" * 60)
+
+
+def printProgress(current: int, total: int, message: str = ""):
+    """Print a progress indicator like [5/100] message."""
+    import sys
+    line = f"  [{current}/{total}] {message}"
+    sys.stdout.write(f"\r{line:<70}")
+    sys.stdout.flush()
+    if current >= total:
+        print()

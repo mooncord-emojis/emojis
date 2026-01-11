@@ -21,6 +21,7 @@ from emoji_utils import (
     getTwitchDownloadUrl,
     printBanner,
     printSeparator,
+    printProgress,
 )
 
 
@@ -66,13 +67,14 @@ def downloadAllEmojis(
     toStreamerFolder = 0
 
     prefixLower = emojiPrefix.lower() if emojiPrefix else None
+    total = len(emojis)
 
-    for emoji in emojis:
+    for i, emoji in enumerate(emojis, 1):
         name = emoji.get("name", "")
         safeName = sanitizeFilename(name).lower()
 
         if not safeName:
-            print("    Skipping: Empty name after sanitization")
+            printProgress(i, total, "Skipping: Empty name")
             failed += 1
             continue
 
@@ -82,7 +84,7 @@ def downloadAllEmojis(
 
         urlInfo = getUrlFunc(emoji)
         if not urlInfo:
-            print(f"    Skipping {name}: No download URL")
+            printProgress(i, total, f"Skipping: {safeName} (no URL)")
             failed += 1
             continue
 
@@ -104,7 +106,7 @@ def downloadAllEmojis(
 
         destPath = outputDir / f"{safeName}{ext}"
 
-        print(f"    [{platformName}] {safeName}{ext} -> {outputDir.name}/")
+        printProgress(i, total, f"[{platformName}] {safeName}{ext}")
         if downloadFile(url, destPath):
             downloaded += 1
             existingNames.add(safeName)
@@ -121,6 +123,7 @@ def main():
     staticFolder = repoPath / "Static"
     animatedFolder = repoPath / "Animated"
     zeroWidthFolder = repoPath / "Zero Width"
+    streamersFolder = repoPath / "Streamers"
 
     printBanner("Streamer Emoji Downloader", "Downloads from: 7TV, BetterTTV, Twitch")
 
@@ -175,7 +178,7 @@ def main():
     print(f"Found {len(existingNames)} reviewed emoji names.")
     print()
 
-    streamerFolder = staticFolder / twitchUsername.upper()
+    streamerFolder = streamersFolder / twitchUsername.upper()
 
     print("Folder routing:")
     print(f"  Zero width (*00) -> {zeroWidthFolder.relative_to(repoPath)}")
