@@ -1,4 +1,4 @@
-name: Coalesce GIF Frames
+name: Optimize GIF Files
 
 on:
   workflow_dispatch:
@@ -12,32 +12,31 @@ on:
         required: false
         type: boolean
         default: false
-  pull_request:
+  push:
     branches:
-      - ratbranch
+      - optimized
 
 jobs:
-  coalesce:
+  optimize:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
       checks: write
 
     env:
-      TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      TARGET_BRANCH: ${{ github.ref_name }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.ref }}
           token: ${{ secrets.PAT }}
           persist-credentials: true
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gifsicle imagemagick jq
+        run: sudo apt-get update && sudo apt-get install -y gifsicle jq
 
       - name: Get files to process
         id: files
@@ -49,11 +48,10 @@ jobs:
           FORCE_REPROCESS: ${{ github.event.inputs.force_reprocess }}
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
 
-      - name: Coalesce GIF files
-        id: coalesce
-        run: bash .github/scripts/process-gifs.sh
+      - name: Optimize GIF files
+        id: optimize
+        run: bash .github/scripts/optimize-gifs.sh
         env:
           UNPROCESSED: ${{ steps.files.outputs.unprocessed }}
 
@@ -72,21 +70,13 @@ jobs:
         run: bash .github/scripts/commit-changes.sh
         env:
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
-          COMMIT_MESSAGE: "Process GIF files [skip ci]"
+          COMMIT_MESSAGE: "Optimize GIF files [skip ci]"
 
       - name: Update processed files list
-        if: steps.coalesce.outputs.processed != ''
+        if: steps.optimize.outputs.processed != ''
         run: bash .github/scripts/update-processed-list.sh
         env:
           FILE_TYPE: gif
-          PROCESSED: ${{ steps.coalesce.outputs.processed }}
+          PROCESSED: ${{ steps.optimize.outputs.processed }}
           PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
-
-      - name: Create check runs on new commit
-        if: steps.coalesce.outputs.processed != '' && github.event_name == 'pull_request'
-        run: bash .github/scripts/create-check-runs.sh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-
