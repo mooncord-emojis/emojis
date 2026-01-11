@@ -106,6 +106,34 @@ function showToast(message, type) {
     }, 3000);
 }
 
+// Folder tooltip element
+let folderTooltip = null;
+
+function createFolderTooltip() {
+    if (folderTooltip) {
+        return;
+    }
+    folderTooltip = document.createElement('div');
+    folderTooltip.className = 'folder-tooltip';
+    document.body.appendChild(folderTooltip);
+}
+
+function showFolderTooltip(element, text) {
+    createFolderTooltip();
+    folderTooltip.textContent = text;
+
+    const rect = element.getBoundingClientRect();
+    folderTooltip.style.left = rect.left + 'px';
+    folderTooltip.style.top = (rect.bottom + 6) + 'px';
+    folderTooltip.classList.add('visible');
+}
+
+function hideFolderTooltip() {
+    if (folderTooltip) {
+        folderTooltip.classList.remove('visible');
+    }
+}
+
 // Check if a JWT token is expired
 function isTokenExpired(token) {
     if (!token) {
@@ -396,8 +424,12 @@ function renderFolderTree(tree, container) {
 
         const hasDescription = node.description !== null;
         if (hasDescription) {
-            itemDiv.classList.add('has-tooltip');
-            itemDiv.dataset.tooltip = node.description;
+            itemDiv.addEventListener('mouseenter', function() {
+                showFolderTooltip(itemDiv, node.description);
+            });
+            itemDiv.addEventListener('mouseleave', function() {
+                hideFolderTooltip();
+            });
         }
 
         itemDiv.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name">' + name + '</span>';
@@ -970,8 +1002,12 @@ function renderEditFolderTree(tree, container) {
 
         const hasDescription = node.description !== null;
         if (hasDescription) {
-            itemDiv.classList.add('has-tooltip');
-            itemDiv.dataset.tooltip = node.description;
+            itemDiv.addEventListener('mouseenter', function() {
+                showFolderTooltip(itemDiv, node.description);
+            });
+            itemDiv.addEventListener('mouseleave', function() {
+                hideFolderTooltip();
+            });
         }
 
         itemDiv.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name">' + name + '</span>';
