@@ -117,7 +117,7 @@ def downloadAllEmojis(
 
 
 def main():
-    repoPath = Path(__file__).resolve().parent.parent.parent
+    repoPath = Path(__file__).resolve().parent.parent.parent.parent
     staticFolder = repoPath / "Static"
     animatedFolder = repoPath / "Animated"
     zeroWidthFolder = repoPath / "Zero Width"
@@ -178,10 +178,10 @@ def main():
     streamerFolder = staticFolder / twitchUsername.upper()
 
     print("Folder routing:")
-    print(f"  Zero width (*00) -> {zeroWidthFolder}")
-    print(f"  Prefix matches ({emojiPrefix}*) -> {streamerFolder}")
-    print(f"  Animated (no prefix) -> {animatedFolder}")
-    print(f"  Static (no prefix) -> {staticFolder}")
+    print(f"  Zero width (*00) -> {zeroWidthFolder.relative_to(repoPath)}")
+    print(f"  Prefix matches ({emojiPrefix}*) -> {streamerFolder.relative_to(repoPath)}")
+    print(f"  Animated (no prefix) -> {animatedFolder.relative_to(repoPath)}")
+    print(f"  Static (no prefix) -> {staticFolder.relative_to(repoPath)}")
     print()
 
     totalDownloaded = 0

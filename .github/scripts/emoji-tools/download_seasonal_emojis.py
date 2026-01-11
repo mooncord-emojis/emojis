@@ -21,7 +21,7 @@ from emoji_utils import (
 
 
 def main():
-    repoPath = Path(__file__).resolve().parent.parent.parent
+    repoPath = Path(__file__).resolve().parent.parent.parent.parent
 
     printBanner("7TV Seasonal Emoji Downloader")
 

@@ -293,7 +293,7 @@ class SeasonalReviewHandler(BaseReviewHandler):
 
 
 def main():
-    repoPath = Path(__file__).resolve().parent.parent.parent
+    repoPath = Path(__file__).resolve().parent.parent.parent.parent
     seasonalDir = repoPath / "Seasonal"
 
     printBanner("Seasonal Emoji Reviewer")

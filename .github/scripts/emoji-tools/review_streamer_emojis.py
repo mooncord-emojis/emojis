@@ -349,7 +349,7 @@ class StreamerReviewHandler(BaseReviewHandler):
 
 
 def main():
-    repoPath = Path(__file__).resolve().parent.parent.parent
+    repoPath = Path(__file__).resolve().parent.parent.parent.parent
 
     printBanner("Emoji Reviewer")
 
