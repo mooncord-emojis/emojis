@@ -122,9 +122,13 @@ function showFolderTooltip(element, text) {
     createFolderTooltip();
     folderTooltip.textContent = text;
 
-    const rect = element.getBoundingClientRect();
-    folderTooltip.style.left = rect.left + 'px';
-    folderTooltip.style.top = (rect.bottom + 6) + 'px';
+    // Position to the right of the folder tree container
+    const folderTreeContainer = element.closest('.folder-tree');
+    const containerRect = folderTreeContainer.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+
+    folderTooltip.style.left = (containerRect.right + 10) + 'px';
+    folderTooltip.style.top = elementRect.top + 'px';
     folderTooltip.classList.add('visible');
 }
 
