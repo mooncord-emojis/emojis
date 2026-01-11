@@ -44,7 +44,7 @@ async function fetchFoldersFromRepo(githubToken) {
     const treeData = await treeResponse.json();
 
     // Filter to only directories (type === 'tree'), exclude hidden/system folders
-    const folders = treeData.tree
+    const folderPaths = treeData.tree
         .filter(item => item.type === 'tree')
         .map(item => item.path)
         .filter(path => {
@@ -52,6 +52,47 @@ async function fetchFoldersFromRepo(githubToken) {
             return !EXCLUDED_FOLDERS.includes(topLevel);
         })
         .sort();
+
+    // Find all description.txt files and their SHAs
+    const descriptionFiles = treeData.tree
+        .filter(item => item.type === 'blob' && item.path.endsWith('/description.txt'))
+        .reduce((map, item) => {
+            const folderPath = item.path.replace('/description.txt', '');
+            map[folderPath] = item.sha;
+            return map;
+        }, {});
+
+    // Fetch description contents in parallel
+    const descriptionPromises = Object.entries(descriptionFiles).map(async ([folderPath, sha]) => {
+        try {
+            const blobResponse = await fetch(
+                `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/blobs/${sha}`,
+                { headers }
+            );
+            if (blobResponse.ok) {
+                const blobData = await blobResponse.json();
+                const content = atob(blobData.content).trim();
+                return { folderPath, description: content };
+            }
+        } catch (err) {
+            console.error(`Failed to fetch description for ${folderPath}:`, err);
+        }
+        return { folderPath, description: null };
+    });
+
+    const descriptionResults = await Promise.all(descriptionPromises);
+    const descriptionMap = descriptionResults.reduce((map, result) => {
+        if (result.description) {
+            map[result.folderPath] = result.description;
+        }
+        return map;
+    }, {});
+
+    // Build folder objects with descriptions
+    const folders = folderPaths.map(path => ({
+        path: path,
+        description: descriptionMap[path] || null
+    }));
 
     // Update cache
     cachedFolders = folders;
@@ -170,7 +211,8 @@ async function validateInputs(emojiName, targetFolder, imageData, fileExtension,
 
     // Validate target folder against dynamic list from repo
     const validFolders = await fetchFoldersFromRepo(githubToken);
-    if (!targetFolder || !validFolders.includes(targetFolder)) {
+    const folderExists = validFolders.some(folder => folder.path === targetFolder);
+    if (!targetFolder || !folderExists) {
         return 'Invalid target folder';
     }
 
@@ -599,7 +641,8 @@ export async function handleUpdateSubmission(request, env, prNumber) {
 
         if (newFolder) {
             const validFolders = await fetchFoldersFromRepo(env.GITHUB_TOKEN);
-            if (!validFolders.includes(newFolder)) {
+            const folderExists = validFolders.some(folder => folder.path === newFolder);
+            if (!folderExists) {
                 return new Response(JSON.stringify({ error: 'Invalid target folder' }), {
                     status: 400,
                     headers: { 'Content-Type': 'application/json' }

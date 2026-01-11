@@ -350,20 +350,29 @@ async function loadFolders() {
     }
 }
 
-// Build hierarchical tree from flat folder paths
+// Build hierarchical tree from flat folder objects
 function buildFolderTree(folders) {
     const tree = {};
 
-    folders.forEach(function(path) {
+    folders.forEach(function(folder) {
+        const path = folder.path;
+        const description = folder.description;
         const parts = path.split('/');
         let current = tree;
 
         parts.forEach(function(part, index) {
+            const currentPath = parts.slice(0, index + 1).join('/');
             if (!current[part]) {
                 current[part] = {
-                    fullPath: parts.slice(0, index + 1).join('/'),
+                    fullPath: currentPath,
+                    description: null,
                     children: {}
                 };
+            }
+            // Set description on the final node
+            const isLastPart = index === parts.length - 1;
+            if (isLastPart && description) {
+                current[part].description = description;
             }
             current = current[part].children;
         });
@@ -384,6 +393,13 @@ function renderFolderTree(tree, container) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'folder-item';
         itemDiv.dataset.path = node.fullPath;
+
+        const hasDescription = node.description !== null;
+        if (hasDescription) {
+            itemDiv.classList.add('has-tooltip');
+            itemDiv.dataset.tooltip = node.description;
+        }
+
         itemDiv.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name">' + name + '</span>';
 
         itemDiv.addEventListener('click', function() {
@@ -951,6 +967,13 @@ function renderEditFolderTree(tree, container) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'folder-item';
         itemDiv.dataset.path = node.fullPath;
+
+        const hasDescription = node.description !== null;
+        if (hasDescription) {
+            itemDiv.classList.add('has-tooltip');
+            itemDiv.dataset.tooltip = node.description;
+        }
+
         itemDiv.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name">' + name + '</span>';
 
         itemDiv.addEventListener('click', function() {

@@ -462,6 +462,41 @@ h2 {
     font-size: 0.95rem;
 }
 
+/* Folder Tooltips */
+.folder-item.has-tooltip {
+    position: relative;
+}
+
+.folder-item.has-tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 12px;
+    padding: 8px 12px;
+    background: #1a1a2e;
+    border: 1px solid rgba(88, 101, 242, 0.4);
+    border-radius: 6px;
+    color: #ccc;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 100;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.folder-item.has-tooltip:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
 /* Image Preview */
 #previewContainer {
     margin-bottom: 24px;
