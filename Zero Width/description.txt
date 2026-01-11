@@ -1,0 +1,1 @@
+If the emoji name ends with 00, then it probably goes here.
