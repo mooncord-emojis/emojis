@@ -12,19 +12,20 @@ on:
         required: false
         type: boolean
         default: false
-  push:
+  pull_request:
     branches:
-      - optimized
+      - ratbranch
 
 jobs:
   optimize:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
       checks: write
 
     env:
-      TARGET_BRANCH: ${{ github.ref_name }}
+      TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
     steps:
       - name: Checkout repository
@@ -48,6 +49,7 @@ jobs:
           FORCE_REPROCESS: ${{ github.event.inputs.force_reprocess }}
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
 
       - name: Optimize GIF files
         id: optimize
@@ -80,3 +82,10 @@ jobs:
           PROCESSED: ${{ steps.optimize.outputs.processed }}
           PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
+          
+      - name: Create check runs on new commit
+        if: steps.optimize.outputs.processed != '' && github.event_name == 'pull_request'
+        run: bash .github/scripts/create-check-runs.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
