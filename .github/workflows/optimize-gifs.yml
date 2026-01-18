@@ -32,12 +32,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          ref: ${{ github.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.PAT }}
           persist-credentials: true
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gifsicle jq
+        run: sudo apt-get update && sudo apt-get install -y gifsicle imagemagick jq
 
       - name: Get files to process
         id: files
