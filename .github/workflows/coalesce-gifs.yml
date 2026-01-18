@@ -82,10 +82,12 @@ jobs:
           PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
 
-      - name: Create check runs on new commit
+      - name: Create check run on new commit
         if: steps.coalesce.outputs.processed != '' && github.event_name == 'pull_request'
         run: bash .github/scripts/create-check-runs.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
+          CHECK_NAME: coalesce
+          CHECK_CONCLUSION: success
 

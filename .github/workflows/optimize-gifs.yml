@@ -72,7 +72,7 @@ jobs:
         run: bash .github/scripts/commit-changes.sh
         env:
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
-          COMMIT_MESSAGE: "Optimize GIF files [skip ci]"
+          COMMIT_MESSAGE: "Optimize GIF files"
 
       - name: Update processed files list
         if: steps.optimize.outputs.processed != ''
@@ -83,10 +83,11 @@ jobs:
           PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
           
-      - name: Create check runs on new commit
-        if: steps.optimize.outputs.processed != '' && github.event_name == 'pull_request'
+      - name: Create check run on new commit
+        if: always() && steps.commit.outputs.committed != '' && github.event_name == 'pull_request'
         run: bash .github/scripts/create-check-runs.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
-          ORIGINAL_SHA: ${{ github.event.pull_request.head.sha }}
+          CHECK_NAME: optimize
+          CHECK_CONCLUSION: ${{ job.status == 'success' && 'success' || 'failure' }}
