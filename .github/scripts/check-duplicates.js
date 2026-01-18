@@ -4,7 +4,7 @@
 // (by base name, ignoring extension). If a duplicate is found, it comments
 // on the PR and closes it.
 
-module.exports = async ({ github, context }) => {
+module.exports = async ({ github, context, changedFiles }) => {
   const pr = context.payload.pull_request;
 
   const isAddEmoji = pr.title.startsWith('Add emoji:');
@@ -21,7 +21,7 @@ module.exports = async ({ github, context }) => {
     return;
   }
 
-  const prFiles = await getPrFiles(github, context, pr.number);
+  const prFiles = parseChangedFiles(changedFiles);
   const imageFiles = filterImageFiles(prFiles);
 
   if (imageFiles.length === 0) {
@@ -41,17 +41,16 @@ module.exports = async ({ github, context }) => {
   }
 };
 
-async function getPrFiles(github, context, prNumber) {
-  const { data: files } = await github.rest.pulls.listFiles({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    pull_number: prNumber
-  });
+function parseChangedFiles(changedFilesStr) {
+  if (!changedFilesStr) {
+    return [];
+  }
 
+  const files = changedFilesStr.split(',').filter(f => f.trim() !== '');
   console.log(`Files in PR: ${files.length}`);
-  files.forEach(f => console.log(`  - ${f.filename} (${f.status})`));
+  files.forEach(f => console.log(`  - ${f}`));
 
-  return files;
+  return files.map(filename => ({ filename: filename.trim() }));
 }
 
 function filterImageFiles(files) {
