@@ -74,6 +74,20 @@ isAnimated() {
     [ "$frameCount" -gt 1 ] 2>/dev/null
 }
 
+filterAnimatedFiles() {
+    local files="$1"
+    local result=""
+
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        if isAnimated "$file"; then
+            result="${result}${file}"$'\n'
+        fi
+    done <<< "$files"
+
+    echo "$result"
+}
+
 findUnprocessedFiles() {
     local allFiles
     allFiles=$(find . -type f -iname "*.gif" | sed 's|^\./||' | sort)
@@ -125,7 +139,13 @@ main() {
     local unprocessed
     unprocessed=$(findUnprocessedFiles)
 
-    writeOutput "$unprocessed"
+    local changedAnimated
+    changedAnimated=$(filterAnimatedFiles "$currentCommitFiles")
+
+    local combined
+    combined=$(printf "%s\n%s" "$unprocessed" "$changedAnimated" | sort -u | grep -v '^$' || true)
+
+    writeOutput "$combined"
 }
 
 main

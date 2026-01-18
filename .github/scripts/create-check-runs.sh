@@ -7,7 +7,7 @@
 
 set -e
 
-CHECKS="coalesce convert check-duplicates"
+CHECKS="check-duplicates optimize"
 
 main() {
     local newSha
