@@ -25,9 +25,12 @@ clearProcessedList() {
 }
 
 getChangedFilesFromPR() {
-    echo "Fetching files from PR ${PR_NUMBER}..." >&2
+    echo "Fetching files from PR ${PR_NUMBER} in ${REPOSITORY}..." >&2
+    local rawResponse
+    rawResponse=$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" 2>&1) || echo "API call failed: $rawResponse" >&2
+    echo "Raw API response: $rawResponse" >&2
     local allFiles
-    allFiles=$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
+    allFiles=$(echo "$rawResponse" | jq -r '.[].filename' 2>/dev/null)
     echo "All files in PR: $allFiles" >&2
     echo "$allFiles" | grep -iE "\.gif$" || true
 }
