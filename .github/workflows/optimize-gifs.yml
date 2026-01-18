@@ -72,7 +72,7 @@ jobs:
         run: bash .github/scripts/commit-changes.sh
         env:
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
-          COMMIT_MESSAGE: "Optimize GIF files"
+          COMMIT_MESSAGE: "Optimize GIF files [skip ci]"
 
       - name: Update processed files list
         if: steps.optimize.outputs.processed != ''
@@ -82,3 +82,18 @@ jobs:
           PROCESSED: ${{ steps.optimize.outputs.processed }}
           PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
+
+      - name: Create check run on new commit
+        if: steps.commit.outputs.committed != '' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newSha = require('child_process').execSync('git rev-parse HEAD').toString().trim();
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Optimize GIF Files / optimize (pull_request)',
+              head_sha: newSha,
+              status: 'completed',
+              conclusion: 'success'
+            });

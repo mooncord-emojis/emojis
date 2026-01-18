@@ -10,6 +10,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      checks: write
 
     steps:
       - name: Checkout repository
@@ -27,6 +28,7 @@ jobs:
           echo "Changed files: $FILES"
 
       - name: Check for duplicate emoji
+        id: duplicates
         uses: actions/github-script@v7
         env:
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
@@ -34,3 +36,17 @@ jobs:
           script: |
             const script = require('./.github/scripts/check-duplicates.js');
             await script({ github, context, changedFiles: process.env.CHANGED_FILES });
+
+      - name: Create check run
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Check Emoji Duplicates / check-duplicates (pull_request)',
+              head_sha: context.payload.pull_request.head.sha,
+              status: 'completed',
+              conclusion: '${{ job.status }}'
+            });
