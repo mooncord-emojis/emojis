@@ -1,8 +1,7 @@
 #!/bin/bash
-# Find files that haven't been processed yet
+# Find animated GIF files that haven't been processed yet
 #
 # Required env vars:
-#   FILE_TYPE - "gif" or "webp"
 #   FORCE_REPROCESS - "true" to clear processed list
 #   SPECIFIC_FILE - optional, process only this file (bypasses normal search)
 #   EVENT_NAME - github.event_name
@@ -16,22 +15,21 @@
 set -e
 
 PROCESSED_FILE=".github/processed-files.json"
-JSON_KEY="${FILE_TYPE}s"  # "gifs" or "webps"
 
 clearProcessedList() {
-    echo "Force reprocess requested - clearing ${FILE_TYPE} list"
+    echo "Force reprocess requested - clearing gifs list"
     if [ -f "$PROCESSED_FILE" ]; then
-        jq ".${JSON_KEY} = []" "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
+        jq ".gifs = []" "$PROCESSED_FILE" > "${PROCESSED_FILE}.tmp"
         mv "${PROCESSED_FILE}.tmp" "$PROCESSED_FILE"
     fi
 }
 
 getChangedFilesFromPR() {
-    gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename' | grep -iE "\.${FILE_TYPE}$" || true
+    gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename' | grep -iE "\.gif$" || true
 }
 
 getChangedFilesFromCommit() {
-    git diff-tree --no-commit-id --name-only -r HEAD | grep -iE "\.${FILE_TYPE}$" || true
+    git diff-tree --no-commit-id --name-only -r HEAD | grep -iE "\.gif$" || true
 }
 
 getCurrentCommitFiles() {
@@ -49,7 +47,7 @@ initializeProcessedFile() {
     mkdir -p .github
 
     local allFiles
-    allFiles=$(find . -type f -iname "*.${FILE_TYPE}" | sed 's|^\./||' | sort)
+    allFiles=$(find . -type f -iname "*.gif" | sed 's|^\./||' | sort)
 
     local initialFiles="[]"
     while IFS= read -r file; do
@@ -59,25 +57,34 @@ initializeProcessedFile() {
         fi
     done <<< "$allFiles"
 
-    echo "{\"gifs\": [], \"webps\": []}" | jq ".${JSON_KEY} = ${initialFiles}" > "$PROCESSED_FILE"
-    echo "Created with $(echo "$initialFiles" | jq 'length') pre-existing ${FILE_TYPE}s"
+    echo "{\"gifs\": []}" | jq ".gifs = ${initialFiles}" > "$PROCESSED_FILE"
+    echo "Created with $(echo "$initialFiles" | jq 'length') pre-existing gifs"
 }
 
 ensureProcessedFileExists() {
     if [ ! -f "$PROCESSED_FILE" ]; then
-        echo "{\"gifs\": [], \"webps\": []}" | jq '.' > "$PROCESSED_FILE"
+        echo "{\"gifs\": []}" | jq '.' > "$PROCESSED_FILE"
     fi
+}
+
+isAnimated() {
+    local file="$1"
+    local frameCount
+    frameCount=$(identify -format "%n\n" "$file" 2>/dev/null | head -1)
+    [ "$frameCount" -gt 1 ] 2>/dev/null
 }
 
 findUnprocessedFiles() {
     local allFiles
-    allFiles=$(find . -type f -iname "*.${FILE_TYPE}" | sed 's|^\./||' | sort)
+    allFiles=$(find . -type f -iname "*.gif" | sed 's|^\./||' | sort)
 
     local unprocessed=""
     while IFS= read -r file; do
         [ -z "$file" ] && continue
-        if ! jq -e --arg f "$file" ".${JSON_KEY} | index(\$f)" "$PROCESSED_FILE" > /dev/null 2>&1; then
-            unprocessed="${unprocessed}${file}"$'\n'
+        if ! jq -e --arg f "$file" ".gifs | index(\$f)" "$PROCESSED_FILE" > /dev/null 2>&1; then
+            if isAnimated "$file"; then
+                unprocessed="${unprocessed}${file}"$'\n'
+            fi
         fi
     done <<< "$allFiles"
 
@@ -86,7 +93,7 @@ findUnprocessedFiles() {
 
 writeOutput() {
     local unprocessed="$1"
-    echo "${FILE_TYPE}s to process:"
+    echo "gifs to process:"
     echo "$unprocessed"
     {
         echo "unprocessed<<EOF"
@@ -96,11 +103,6 @@ writeOutput() {
 }
 
 main() {
-    if [ -z "$FILE_TYPE" ]; then
-        echo "ERROR: FILE_TYPE env var is required (gif or webp)"
-        exit 1
-    fi
-
     if [ -n "$SPECIFIC_FILE" ]; then
         echo "Processing specific file: $SPECIFIC_FILE"
         writeOutput "$SPECIFIC_FILE"

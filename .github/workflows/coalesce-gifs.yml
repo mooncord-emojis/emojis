@@ -44,7 +44,6 @@ jobs:
         run: bash .github/scripts/find-unprocessed.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FILE_TYPE: gif
           SPECIFIC_FILE: ${{ github.event.inputs.specific_file }}
           FORCE_REPROCESS: ${{ github.event.inputs.force_reprocess }}
           EVENT_NAME: ${{ github.event_name }}
