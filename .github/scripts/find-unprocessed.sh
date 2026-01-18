@@ -5,8 +5,7 @@
 #   FORCE_REPROCESS - "true" to clear processed list
 #   SPECIFIC_FILE - optional, process only this file (bypasses normal search)
 #   EVENT_NAME - github.event_name
-#   REPOSITORY - github.repository
-#   PR_NUMBER - github.event.pull_request.number (for PR events)
+#   BASE_REF - github.event.pull_request.base.ref (for PR events)
 #   GITHUB_OUTPUT - path to output file
 #
 # Outputs:
@@ -25,13 +24,11 @@ clearProcessedList() {
 }
 
 getChangedFilesFromPR() {
-    echo "Fetching files from PR ${PR_NUMBER} in ${REPOSITORY}..." >&2
-    local rawResponse
-    rawResponse=$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" 2>&1) || echo "API call failed: $rawResponse" >&2
-    echo "Raw API response: $rawResponse" >&2
+    echo "Getting changed files from git diff against origin/${BASE_REF}..." >&2
+    git fetch origin "${BASE_REF}" --depth=1 >&2
     local allFiles
-    allFiles=$(echo "$rawResponse" | jq -r '.[].filename' 2>/dev/null)
-    echo "All files in PR: $allFiles" >&2
+    allFiles=$(git diff --name-only "origin/${BASE_REF}" HEAD)
+    echo "All changed files: $allFiles" >&2
     echo "$allFiles" | grep -iE "\.gif$" || true
 }
 
