@@ -454,6 +454,75 @@ function extractEmojiInfoFromBody(body) {
     };
 }
 
+// Extract the sha parameter from an image URL if present
+function extractShaFromImageUrl(imageUrl) {
+    if (!imageUrl) {
+        return null;
+    }
+    const shaMatch = imageUrl.match(/[?&]sha=([a-f0-9]+)/i);
+    return shaMatch ? shaMatch[1] : null;
+}
+
+// Get the actual image file path from the PR branch tree
+async function getImageFilePathFromBranch(headers, branchName, emojiName, folder) {
+    try {
+        const treeResponse = await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${branchName}?recursive=1`,
+            { headers }
+        );
+
+        if (!treeResponse.ok) {
+            return null;
+        }
+
+        const treeData = await treeResponse.json();
+        const expectedPathPrefix = `${folder}/${emojiName}.`;
+
+        const imageFile = treeData.tree.find(item =>
+            item.type === 'blob' && item.path.startsWith(expectedPathPrefix)
+        );
+
+        return imageFile ? imageFile.path : null;
+    } catch (err) {
+        console.error('Error getting image file path:', err);
+        return null;
+    }
+}
+
+// Build an image URL with cache-busting sha parameter
+function buildImageUrlWithSha(branchName, filePath, sha) {
+    const baseUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${filePath}`;
+    return `${baseUrl}?sha=${sha}`;
+}
+
+// Update PR body with new image URL for cache busting
+async function updatePrBodyWithCacheBustedImageUrl(headers, prNumber, emojiName, folder, username, newImageUrl) {
+    const prBody = `## Emoji Submission
+
+**Emoji Name:** \`${emojiName}\`
+**Target Folder:** \`${folder}/\`
+**Submitted by:** ${username} (via Discord)
+
+### Preview
+![${emojiName}](${newImageUrl})
+
+---
+*This PR was automatically created by the Mooncord Emoji Submission system.*`;
+
+    try {
+        await fetch(
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${prNumber}`,
+            {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ body: prBody })
+            }
+        );
+    } catch (err) {
+        console.error('Error updating PR body with cache-busted URL:', err);
+    }
+}
+
 // Handle GET /api/submissions - list user's submissions
 export async function handleGetUserSubmissions(request, env) {
     const authPayload = await verifyAuthToken(request, env);
@@ -470,9 +539,14 @@ export async function handleGetUserSubmissions(request, env) {
         'User-Agent': 'Mooncord-Emoji-Submission-Bot'
     };
 
+    // Get the state query parameter (default to 'open' for backwards compatibility)
+    const url = new URL(request.url);
+    const stateParam = url.searchParams.get('state') || 'open';
+    const prState = stateParam === 'all' ? 'all' : stateParam;
+
     try {
         const response = await fetch(
-            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls?state=open&per_page=100`,
+            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls?state=${prState}&per_page=100`,
             { headers }
         );
 
@@ -487,10 +561,59 @@ export async function handleGetUserSubmissions(request, env) {
             return submitter === authPayload.username;
         });
 
-        // Fetch check runs for each user's PR in parallel
+        const headersWithContentType = {
+            ...headers,
+            'Content-Type': 'application/json'
+        };
+
+        // Fetch check runs and update image URLs for each user's PR in parallel
         const userSubmissions = await Promise.all(userPrs.map(async pr => {
             const emojiInfo = extractEmojiInfoFromBody(pr.body);
             const imageMatch = pr.body ? pr.body.match(/!\[[^\]]*\]\(([^)]+)\)/) : null;
+            const currentImageUrl = imageMatch ? imageMatch[1] : null;
+            const branchName = pr.head.ref;
+            const headSha = pr.head.sha;
+
+            let finalImageUrl = currentImageUrl;
+
+            const isMerged = pr.merged_at !== null;
+            const isOpenPr = pr.state === 'open';
+            const isClosed = pr.state === 'closed' && !isMerged;
+
+            // Handle image URLs based on PR state
+            if (isMerged && emojiInfo.emojiName && emojiInfo.folder) {
+                // For merged PRs, the image now exists on the base branch
+                // The feature branch may have been deleted, so use base branch URL
+                const filePath = await getImageFilePathFromBranch(headers, BASE_BRANCH, emojiInfo.emojiName, emojiInfo.folder);
+                if (filePath) {
+                    finalImageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BASE_BRANCH}/${filePath}`;
+                }
+            } else if (isClosed) {
+                // For closed (not merged) PRs, the branch is deleted and the image is gone
+                // Return null so the frontend shows a placeholder
+                finalImageUrl = null;
+            } else if (isOpenPr && emojiInfo.emojiName && emojiInfo.folder) {
+                // For open PRs, check if the image URL needs cache busting
+                const urlSha = extractShaFromImageUrl(currentImageUrl);
+                const needsImageUrlUpdate = urlSha !== headSha;
+
+                if (needsImageUrlUpdate) {
+                    const filePath = await getImageFilePathFromBranch(headers, branchName, emojiInfo.emojiName, emojiInfo.folder);
+                    if (filePath) {
+                        finalImageUrl = buildImageUrlWithSha(branchName, filePath, headSha);
+
+                        // Update the PR body with the new cache-busted image URL (fire and forget)
+                        updatePrBodyWithCacheBustedImageUrl(
+                            headersWithContentType,
+                            pr.number,
+                            emojiInfo.emojiName,
+                            emojiInfo.folder,
+                            authPayload.username,
+                            finalImageUrl
+                        );
+                    }
+                }
+            }
 
             // Fetch check runs for this PR's head commit
             let checkStatus = { state: 'unknown', checks: [] };
@@ -538,9 +661,11 @@ export async function handleGetUserSubmissions(request, env) {
                 title: pr.title,
                 emojiName: emojiInfo.emojiName,
                 folder: emojiInfo.folder,
-                imageUrl: imageMatch ? imageMatch[1] : null,
+                imageUrl: finalImageUrl,
                 htmlUrl: pr.html_url,
                 createdAt: pr.created_at,
+                state: pr.state,
+                merged: pr.merged_at !== null,
                 labels: pr.labels.map(label => ({
                     name: label.name,
                     color: label.color

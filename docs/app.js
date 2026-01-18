@@ -619,6 +619,11 @@ function detectSubmissionChanges(oldList, newList) {
             return true;
         }
 
+        // Check for image URL changes (triggered when image is updated in the PR)
+        if (oldItem.imageUrl !== newItem.imageUrl) {
+            return true;
+        }
+
         const oldLabels = oldItem.labels.map(function(l) { return l.name; }).sort().join(',');
         const newLabels = newItem.labels.map(function(l) { return l.name; }).sort().join(',');
         if (oldLabels !== newLabels) {
@@ -974,10 +979,18 @@ function renderSubmissionsList() {
             actionsHtml += '<button class="submission-btn close-btn" data-pr="' + submission.number + '" title="Close">Close</button>';
         }
 
+        // Build image HTML - show trash icon for denied submissions with no image
+        let imageHtml = '';
+        const hasNoImage = !submission.imageUrl;
+        if (isClosed && hasNoImage) {
+            // Trash can SVG for denied submissions
+            imageHtml = '<div class="submission-image submission-image-denied" title="Image no longer available"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></div>';
+        } else {
+            imageHtml = '<div class="submission-image"><img src="' + (submission.imageUrl || '') + '" alt="' + (submission.emojiName || 'Emoji') + '" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22><rect fill=%22%23333%22 width=%22100%%22 height=%22100%%22/><text x=%2250%%22 y=%2250%%22 fill=%22%23666%22 text-anchor=%22middle%22 dy=%22.3em%22>?</text></svg>\'"></div>';
+        }
+
         card.innerHTML = `
-            <div class="submission-image">
-                <img src="${submission.imageUrl || ''}" alt="${submission.emojiName || 'Emoji'}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22><rect fill=%22%23333%22 width=%22100%%22 height=%22100%%22/><text x=%2250%%22 y=%2250%%22 fill=%22%23666%22 text-anchor=%22middle%22 dy=%22.3em%22>?</text></svg>'">
-            </div>
+            ${imageHtml}
             <div class="submission-info">
                 <div class="submission-name-row">
                     <span class="submission-name">${submission.emojiName || 'Unknown'}</span>
