@@ -13,7 +13,7 @@ set -e
 optimizeGif() {
     local gif="$1"
 
-    if gifsicle -O3 --lossy=30 "$gif" -o "${gif}.tmp" 2>/dev/null; then
+    if gifsicle -O3 --careful "$gif" -o "${gif}.tmp" 2>/dev/null; then
         mv "${gif}.tmp" "$gif"
         return 0
     fi
