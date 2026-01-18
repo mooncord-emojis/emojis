@@ -7,7 +7,7 @@
 
 set -e
 
-CHECKS="check-duplicates optimize"
+CHECKS="optimize"
 
 main() {
     local newSha
