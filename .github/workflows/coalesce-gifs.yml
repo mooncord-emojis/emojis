@@ -14,7 +14,7 @@ on:
         default: false
   pull_request:
     branches:
-      - ratbranch
+      - testing
 
 jobs:
   coalesce:
