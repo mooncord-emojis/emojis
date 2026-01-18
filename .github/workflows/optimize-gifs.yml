@@ -89,3 +89,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
+          ORIGINAL_SHA: ${{ github.event.pull_request.head.sha }}
