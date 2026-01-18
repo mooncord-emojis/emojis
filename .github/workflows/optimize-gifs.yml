@@ -82,12 +82,3 @@ jobs:
           PROCESSED: ${{ steps.optimize.outputs.processed }}
           PREVIOUS_COMMIT: ${{ steps.commit.outputs.committed }}
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
-          
-      - name: Create check run on new commit
-        if: always() && steps.commit.outputs.committed != '' && github.event_name == 'pull_request'
-        run: bash .github/scripts/create-check-runs.sh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          CHECK_NAME: optimize
-          CHECK_CONCLUSION: ${{ job.status == 'success' && 'success' || 'failure' }}
