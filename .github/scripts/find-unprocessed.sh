@@ -139,8 +139,14 @@ main() {
     local unprocessed
     unprocessed=$(findUnprocessedFiles)
 
+    echo "Files changed in PR/commit:"
+    echo "$currentCommitFiles"
+
     local changedAnimated
     changedAnimated=$(filterAnimatedFiles "$currentCommitFiles")
+
+    echo "Changed files that are animated:"
+    echo "$changedAnimated"
 
     local combined
     combined=$(printf "%s\n%s" "$unprocessed" "$changedAnimated" | sort -u | grep -v '^$' || true)
