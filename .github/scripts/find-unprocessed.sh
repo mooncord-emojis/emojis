@@ -25,7 +25,11 @@ clearProcessedList() {
 }
 
 getChangedFilesFromPR() {
-    gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename' | grep -iE "\.gif$" || true
+    echo "Fetching files from PR ${PR_NUMBER}..." >&2
+    local allFiles
+    allFiles=$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
+    echo "All files in PR: $allFiles" >&2
+    echo "$allFiles" | grep -iE "\.gif$" || true
 }
 
 getChangedFilesFromCommit() {
