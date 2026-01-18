@@ -31,19 +31,20 @@ main() {
 
     # Always create success for optimize (this workflow succeeded)
     gh api "repos/${REPOSITORY}/check-runs" \
-        -f name="Optimize GIF Files / optimize" \
+        -f name="optimize" \
         -f head_sha="$newSha" \
         -f status="completed" \
         -f conclusion="success"
     echo "  Created check run: optimize (success)"
 
     # Propagate check-duplicates result from original commit
+    # Look up using full workflow name format (how GitHub reports it)
     local duplicateConclusion
     duplicateConclusion=$(getCheckConclusion "Check Emoji Duplicates / check-duplicates" "$ORIGINAL_SHA")
     echo "  check-duplicates on original commit: $duplicateConclusion"
 
     gh api "repos/${REPOSITORY}/check-runs" \
-        -f name="Check Emoji Duplicates / check-duplicates" \
+        -f name="check-duplicates" \
         -f head_sha="$newSha" \
         -f status="completed" \
         -f conclusion="$duplicateConclusion"
