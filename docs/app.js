@@ -559,7 +559,7 @@ async function loadUserSubmissionsQuiet() {
             return;
         }
 
-        const response = await fetch(API_BASE_URL + '/api/submissions', {
+        const response = await fetch(API_BASE_URL + '/api/submissions?state=all', {
             method: 'GET',
             headers: {
                 'Authorization': 'Bearer ' + authToken
@@ -608,6 +608,14 @@ function detectSubmissionChanges(oldList, newList) {
             return true;
         }
         if (oldItem.folder !== newItem.folder) {
+            return true;
+        }
+
+        // Check for state changes (open, closed, merged)
+        if (oldItem.state !== newItem.state) {
+            return true;
+        }
+        if (oldItem.merged !== newItem.merged) {
             return true;
         }
 
@@ -855,7 +863,7 @@ async function loadUserSubmissions() {
             return;
         }
 
-        const response = await fetch(API_BASE_URL + '/api/submissions', {
+        const response = await fetch(API_BASE_URL + '/api/submissions?state=all', {
             method: 'GET',
             headers: {
                 'Authorization': 'Bearer ' + authToken
@@ -893,9 +901,32 @@ function renderSubmissionsList() {
         const card = document.createElement('div');
         card.className = 'submission-card';
 
-        // Build check status icon
+        // Determine submission state (open, merged, closed)
+        const prState = submission.state || 'open';
+        const isMerged = submission.merged === true;
+        const isOpen = prState === 'open';
+        const isClosed = prState === 'closed' && !isMerged;
+
+        // Add state class to card for styling
+        if (isMerged) {
+            card.classList.add('submission-merged');
+        } else if (isClosed) {
+            card.classList.add('submission-closed');
+        }
+
+        // Build status badge
+        let statusBadgeHtml = '';
+        if (isMerged) {
+            statusBadgeHtml = '<span class="submission-status submission-status-merged">Approved</span>';
+        } else if (isClosed) {
+            statusBadgeHtml = '<span class="submission-status submission-status-closed">Denied</span>';
+        } else {
+            statusBadgeHtml = '<span class="submission-status submission-status-open">Pending</span>';
+        }
+
+        // Build check status icon (only show for open PRs)
         let checkStatusHtml = '';
-        if (submission.checkStatus) {
+        if (isOpen && submission.checkStatus) {
             const state = submission.checkStatus.state;
             let icon = '';
             let statusClass = '';
@@ -926,14 +957,21 @@ function renderSubmissionsList() {
             checkStatusHtml = '<span class="check-status ' + statusClass + '" title="' + tooltip + '">' + icon + '</span>';
         }
 
-        // Build labels HTML
+        // Build labels HTML (only show for open PRs)
         let labelsHtml = '';
-        if (submission.labels && submission.labels.length > 0) {
+        if (isOpen && submission.labels && submission.labels.length > 0) {
             labelsHtml = '<div class="submission-labels">';
             submission.labels.forEach(function(label) {
                 labelsHtml += '<span class="submission-label" style="background-color: #' + label.color + '">' + label.name + '</span>';
             });
             labelsHtml += '</div>';
+        }
+
+        // Build actions HTML - only show Edit/Close for open PRs
+        let actionsHtml = '<a href="' + submission.htmlUrl + '" target="_blank" class="submission-btn view-btn" title="View PR">View</a>';
+        if (isOpen) {
+            actionsHtml += '<button class="submission-btn edit-btn" data-pr="' + submission.number + '" title="Edit">Edit</button>';
+            actionsHtml += '<button class="submission-btn close-btn" data-pr="' + submission.number + '" title="Close">Close</button>';
         }
 
         card.innerHTML = `
@@ -943,25 +981,26 @@ function renderSubmissionsList() {
             <div class="submission-info">
                 <div class="submission-name-row">
                     <span class="submission-name">${submission.emojiName || 'Unknown'}</span>
+                    ${statusBadgeHtml}
                     ${checkStatusHtml}
                 </div>
                 <div class="submission-folder">${submission.folder || 'Unknown folder'}</div>
                 ${labelsHtml}
             </div>
             <div class="submission-actions">
-                <a href="${submission.htmlUrl}" target="_blank" class="submission-btn view-btn" title="View PR">View</a>
-                <button class="submission-btn edit-btn" data-pr="${submission.number}" title="Edit">Edit</button>
-                <button class="submission-btn close-btn" data-pr="${submission.number}" title="Close">Close</button>
+                ${actionsHtml}
             </div>
         `;
 
-        // Add event listeners
-        card.querySelector('.edit-btn').addEventListener('click', function() {
-            showEditModal(submission);
-        });
-        card.querySelector('.close-btn').addEventListener('click', function() {
-            showCloseModal(submission);
-        });
+        // Add event listeners only for open PRs
+        if (isOpen) {
+            card.querySelector('.edit-btn').addEventListener('click', function() {
+                showEditModal(submission);
+            });
+            card.querySelector('.close-btn').addEventListener('click', function() {
+                showCloseModal(submission);
+            });
+        }
 
         submissionsList.appendChild(card);
     });

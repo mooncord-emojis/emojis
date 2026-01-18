@@ -822,6 +822,28 @@ h2 {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    max-height: 500px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(88, 101, 242, 0.5) rgba(0, 0, 0, 0.2);
+}
+
+.submissions-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.submissions-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.submissions-list::-webkit-scrollbar-thumb {
+    background: rgba(88, 101, 242, 0.5);
+    border-radius: 4px;
+}
+
+.submissions-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(88, 101, 242, 0.7);
 }
 
 .submission-card {
@@ -874,8 +896,46 @@ h2 {
     white-space: nowrap;
 }
 
-/* Submission status row */
+/* Submission status badges */
 .submission-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.submission-status-open {
+    background: rgba(241, 196, 15, 0.2);
+    color: #f1c40f;
+}
+
+.submission-status-merged {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.submission-status-closed {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
+/* Merged/closed submission card styling */
+.submission-card.submission-merged,
+.submission-card.submission-closed {
+    opacity: 0.7;
+}
+
+.submission-card.submission-merged:hover,
+.submission-card.submission-closed:hover {
+    opacity: 0.85;
+}
+
+/* Submission status row (legacy) */
+.submission-status-row {
     display: flex;
     align-items: center;
     gap: 6px;
