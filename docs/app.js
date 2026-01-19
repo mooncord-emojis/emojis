@@ -89,6 +89,9 @@ let closingSubmission = null;
 let submissionsPollingInterval = null;
 const POLLING_INTERVAL_MS = 5000;
 
+// Folder cache key for localStorage
+const FOLDER_CACHE_KEY = 'cachedFolders';
+
 // Show toast notification
 function showToast(message, type) {
     type = type || 'info';
@@ -353,6 +356,28 @@ async function checkExistingSession() {
     updateAccountDisplay();
 }
 
+// Save folders to localStorage cache
+function saveFoldersToCache(folders) {
+    try {
+        localStorage.setItem(FOLDER_CACHE_KEY, JSON.stringify(folders));
+    } catch (e) {
+        console.error('Failed to cache folders:', e);
+    }
+}
+
+// Load folders from localStorage cache
+function loadFoldersFromCache() {
+    try {
+        const cached = localStorage.getItem(FOLDER_CACHE_KEY);
+        if (cached) {
+            return JSON.parse(cached);
+        }
+    } catch (e) {
+        console.error('Failed to load cached folders:', e);
+    }
+    return null;
+}
+
 // Fetch folders from API and build tree UI
 async function loadFolders() {
     if (foldersLoaded) {
@@ -367,6 +392,9 @@ async function loadFolders() {
             throw new Error(data.error || 'Failed to fetch folders');
         }
 
+        // Cache the successful response
+        saveFoldersToCache(data.folders);
+
         // Build tree structure from flat folder list
         const tree = buildFolderTree(data.folders);
 
@@ -377,8 +405,19 @@ async function loadFolders() {
         foldersLoaded = true;
 
     } catch (err) {
-        console.error('Failed to load folders:', err);
-        folderTree.innerHTML = '<div class="folder-tree-error">Error loading folders - refresh page</div>';
+        console.error('Failed to load folders from API:', err);
+
+        // Try to load from cache
+        const cachedFolders = loadFoldersFromCache();
+        if (cachedFolders) {
+            console.log('Using cached folders');
+            const tree = buildFolderTree(cachedFolders);
+            folderTree.innerHTML = '';
+            renderFolderTree(tree, folderTree);
+            foldersLoaded = true;
+        } else {
+            folderTree.innerHTML = '<div class="folder-tree-error">Error loading folders - refresh page</div>';
+        }
     }
 }
 
@@ -1033,13 +1072,27 @@ async function loadEditFolders() {
             throw new Error(data.error || 'Failed to fetch folders');
         }
 
+        // Cache the successful response
+        saveFoldersToCache(data.folders);
+
         const tree = buildFolderTree(data.folders);
         editFolderTree.innerHTML = '';
         renderEditFolderTree(tree, editFolderTree);
         editFoldersLoaded = true;
     } catch (err) {
         console.error('Failed to load folders for edit:', err);
-        editFolderTree.innerHTML = '<div class="folder-tree-error">Error loading folders</div>';
+
+        // Try to load from cache
+        const cachedFolders = loadFoldersFromCache();
+        if (cachedFolders) {
+            console.log('Using cached folders for edit modal');
+            const tree = buildFolderTree(cachedFolders);
+            editFolderTree.innerHTML = '';
+            renderEditFolderTree(tree, editFolderTree);
+            editFoldersLoaded = true;
+        } else {
+            editFolderTree.innerHTML = '<div class="folder-tree-error">Error loading folders</div>';
+        }
     }
 }
 
