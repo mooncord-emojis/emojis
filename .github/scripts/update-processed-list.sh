@@ -27,11 +27,17 @@ addToProcessedList() {
     done <<< "$PROCESSED"
 }
 
+configureGit() {
+    git config --local user.email "github-actions[bot]@users.noreply.github.com"
+    git config --local user.name "github-actions[bot]"
+}
+
 hasChangesToCommit() {
     ! git diff --cached --quiet
 }
 
 commitChanges() {
+    configureGit
     if [ "$PREVIOUS_COMMIT" = "true" ]; then
         git commit --amend --no-edit
         git push origin "HEAD:${TARGET_BRANCH}" --force-with-lease
