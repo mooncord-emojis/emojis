@@ -38,7 +38,11 @@ async function fetchFoldersFromRepo(githubToken) {
     );
 
     if (!treeResponse.ok) {
-        throw new Error('Failed to fetch repository tree');
+        const rateLimitRemaining = treeResponse.headers.get('x-ratelimit-remaining');
+        const rateLimitReset = treeResponse.headers.get('x-ratelimit-reset');
+        console.error(`GitHub API error: ${treeResponse.status} ${treeResponse.statusText}`);
+        console.error(`Rate limit remaining: ${rateLimitRemaining}, resets at: ${rateLimitReset}`);
+        throw new Error(`Failed to fetch repository tree: ${treeResponse.status}`);
     }
 
     const treeData = await treeResponse.json();
@@ -111,8 +115,8 @@ export async function handleGetFolders(request, env) {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
-        console.error('Error fetching folders:', error);
-        return new Response(JSON.stringify({ error: 'Failed to fetch folders' }), {
+        console.error('Error fetching folders:', error.message, error.stack);
+        return new Response(JSON.stringify({ error: 'Failed to fetch folders: ' + error.message }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
         });
