@@ -16,7 +16,7 @@ const EXCLUDED_FOLDERS = [
     'docs'
 ];
 
-// Cache for folder list (refreshed periodically)
+// Cache for folder list (refreshed once per hour)
 let cachedFolders = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
@@ -25,7 +25,7 @@ const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 const submissionsCache = new Map();
 const SUBMISSIONS_CACHE_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 
-// Fetch folders from the repository
+// Fetch folders from the repository using REST API
 async function fetchFoldersFromRepo(githubToken) {
     const now = Date.now();
 
@@ -40,23 +40,27 @@ async function fetchFoldersFromRepo(githubToken) {
         'User-Agent': 'Mooncord-Emoji-Submission-Bot'
     };
 
-    // Get the tree recursively
+    // Get the tree recursively (1 API call)
     const treeResponse = await fetch(
         `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BASE_BRANCH}?recursive=1`,
         { headers }
     );
 
+    // Log rate limit status
+    const rateLimitRemaining = treeResponse.headers.get('x-ratelimit-remaining');
+    const rateLimitLimit = treeResponse.headers.get('x-ratelimit-limit');
+    console.log(`GitHub API rate limit (folders): ${rateLimitRemaining}/${rateLimitLimit} remaining`);
+
     if (!treeResponse.ok) {
-        const rateLimitRemaining = treeResponse.headers.get('x-ratelimit-remaining');
         const rateLimitReset = treeResponse.headers.get('x-ratelimit-reset');
         console.error(`GitHub API error: ${treeResponse.status} ${treeResponse.statusText}`);
-        console.error(`Rate limit remaining: ${rateLimitRemaining}, resets at: ${rateLimitReset}`);
+        console.error(`Rate limit resets at: ${rateLimitReset}`);
         throw new Error(`Failed to fetch repository tree: ${treeResponse.status}`);
     }
 
     const treeData = await treeResponse.json();
 
-    // Filter to only directories (type === 'tree'), exclude hidden/system folders
+    // Filter to only directories, exclude hidden/system folders
     const folderPaths = treeData.tree
         .filter(item => item.type === 'tree')
         .map(item => item.path)
@@ -536,7 +540,7 @@ async function updatePrBodyWithCacheBustedImageUrl(headers, prNumber, emojiName,
     }
 }
 
-// Handle GET /api/submissions - list user's submissions
+// Handle GET /api/submissions - list user's submissions (using GraphQL for efficiency)
 export async function handleGetUserSubmissions(request, env) {
     const authPayload = await verifyAuthToken(request, env);
     if (!authPayload) {
@@ -549,10 +553,9 @@ export async function handleGetUserSubmissions(request, env) {
     // Get the state query parameter (default to 'open' for backwards compatibility)
     const url = new URL(request.url);
     const stateParam = url.searchParams.get('state') || 'open';
-    const prState = stateParam === 'all' ? 'all' : stateParam;
 
     // Check cache first
-    const cacheKey = `${authPayload.username}:${prState}`;
+    const cacheKey = `${authPayload.username}:${stateParam}`;
     const cachedEntry = submissionsCache.get(cacheKey);
     const now = Date.now();
     if (cachedEntry && (now - cachedEntry.timestamp) < SUBMISSIONS_CACHE_DURATION_MS) {
@@ -562,126 +565,135 @@ export async function handleGetUserSubmissions(request, env) {
         });
     }
 
-    const headers = {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Mooncord-Emoji-Submission-Bot'
-    };
+    // Build GraphQL states array
+    let prStates = ['OPEN'];
+    if (stateParam === 'all') {
+        prStates = ['OPEN', 'CLOSED', 'MERGED'];
+    } else if (stateParam === 'closed') {
+        prStates = ['CLOSED', 'MERGED'];
+    }
+
+    // GraphQL query to fetch PRs with check statuses in one request
+    const graphqlQuery = `
+        query($owner: String!, $name: String!, $states: [PullRequestState!]) {
+            repository(owner: $owner, name: $name) {
+                pullRequests(first: 100, states: $states, orderBy: {field: CREATED_AT, direction: DESC}) {
+                    nodes {
+                        number
+                        title
+                        body
+                        state
+                        merged
+                        mergedAt
+                        createdAt
+                        url
+                        headRefName
+                        headRefOid
+                        labels(first: 10) {
+                            nodes {
+                                name
+                                color
+                            }
+                        }
+                        commits(last: 1) {
+                            nodes {
+                                commit {
+                                    statusCheckRollup {
+                                        state
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            rateLimit {
+                remaining
+                limit
+            }
+        }
+    `;
 
     try {
-        const response = await fetch(
-            `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/pulls?state=${prState}&per_page=100`,
-            { headers }
-        );
+        const response = await fetch('https://api.github.com/graphql', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mooncord-Emoji-Submission-Bot'
+            },
+            body: JSON.stringify({
+                query: graphqlQuery,
+                variables: {
+                    owner: REPO_OWNER,
+                    name: REPO_NAME,
+                    states: prStates
+                }
+            })
+        });
 
         if (!response.ok) {
-            const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
-            const rateLimitReset = response.headers.get('x-ratelimit-reset');
-            console.error(`GitHub API error (submissions): ${response.status} ${response.statusText}`);
-            console.error(`Rate limit remaining: ${rateLimitRemaining}, resets at: ${rateLimitReset}`);
-            throw new Error(`Failed to fetch pull requests: ${response.status}`);
+            throw new Error(`GraphQL request failed: ${response.status}`);
         }
 
-        const allPrs = await response.json();
+        const result = await response.json();
 
-        const userPrs = allPrs.filter(pr => {
+        if (result.errors) {
+            console.error('GraphQL errors:', result.errors);
+            throw new Error('GraphQL query failed');
+        }
+
+        // Log rate limit from GraphQL response
+        const rateLimit = result.data.rateLimit;
+        console.log(`GitHub GraphQL rate limit: ${rateLimit.remaining}/${rateLimit.limit} remaining`);
+
+        const allPrs = result.data.repository.pullRequests.nodes;
+
+        // Filter to user's PRs
+        const allUserPrs = allPrs.filter(pr => {
             const submitter = extractSubmitterFromBody(pr.body);
             return submitter === authPayload.username;
         });
 
-        const headersWithContentType = {
-            ...headers,
-            'Content-Type': 'application/json'
-        };
-
-        // Fetch check runs and update image URLs for each user's PR in parallel
-        const userSubmissions = await Promise.all(userPrs.map(async pr => {
+        // Transform PRs to submission format
+        const userSubmissions = allUserPrs.map(pr => {
             const emojiInfo = extractEmojiInfoFromBody(pr.body);
             const imageMatch = pr.body ? pr.body.match(/!\[[^\]]*\]\(([^)]+)\)/) : null;
-            const currentImageUrl = imageMatch ? imageMatch[1] : null;
-            const branchName = pr.head.ref;
-            const headSha = pr.head.sha;
+            let imageUrl = imageMatch ? imageMatch[1] : null;
 
-            let finalImageUrl = currentImageUrl;
+            const isMerged = pr.merged;
+            const isOpenPr = pr.state === 'OPEN';
+            const isClosed = pr.state === 'CLOSED' && !isMerged;
 
-            const isMerged = pr.merged_at !== null;
-            const isOpenPr = pr.state === 'open';
-            const isClosed = pr.state === 'closed' && !isMerged;
-
-            // Handle image URLs based on PR state
+            // For merged PRs, construct URL to base branch
             if (isMerged && emojiInfo.emojiName && emojiInfo.folder) {
-                // For merged PRs, the image now exists on the base branch
-                // The feature branch may have been deleted, so use base branch URL
-                const filePath = await getImageFilePathFromBranch(headers, BASE_BRANCH, emojiInfo.emojiName, emojiInfo.folder);
-                if (filePath) {
-                    finalImageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BASE_BRANCH}/${encodeFilePath(filePath)}`;
+                // Use a predictable URL pattern for merged PRs
+                const possibleExtensions = ['gif', 'png', 'jpg', 'jpeg'];
+                for (const ext of possibleExtensions) {
+                    const testPath = `${emojiInfo.folder}/${emojiInfo.emojiName}.${ext}`;
+                    imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BASE_BRANCH}/${encodeFilePath(testPath)}`;
+                    break; // Just use the first one, frontend will handle 404
                 }
             } else if (isClosed) {
-                // For closed (not merged) PRs, the branch is deleted and the image is gone
-                // Return null so the frontend shows a placeholder
-                finalImageUrl = null;
-            } else if (isOpenPr && emojiInfo.emojiName && emojiInfo.folder) {
-                // For open PRs, check if the image URL needs cache busting
-                const urlSha = extractShaFromImageUrl(currentImageUrl);
-                const needsImageUrlUpdate = urlSha !== headSha;
-
-                if (needsImageUrlUpdate) {
-                    const filePath = await getImageFilePathFromBranch(headers, branchName, emojiInfo.emojiName, emojiInfo.folder);
-                    if (filePath) {
-                        finalImageUrl = buildImageUrlWithSha(branchName, filePath, headSha);
-
-                        // Update the PR body with the new cache-busted image URL (fire and forget)
-                        updatePrBodyWithCacheBustedImageUrl(
-                            headersWithContentType,
-                            pr.number,
-                            emojiInfo.emojiName,
-                            emojiInfo.folder,
-                            authPayload.username,
-                            finalImageUrl
-                        );
-                    }
-                }
+                imageUrl = null;
             }
 
-            // Fetch check runs for this PR's head commit
+            // Get check status from GraphQL response
             let checkStatus = { state: 'unknown', checks: [] };
-            try {
-                const checksResponse = await fetch(
-                    `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/commits/${pr.head.sha}/check-runs`,
-                    { headers }
-                );
-                if (checksResponse.ok) {
-                    const checksData = await checksResponse.json();
-                    const checks = checksData.check_runs || [];
-
-                    // Determine overall status
-                    const hasFailure = checks.some(c => c.conclusion === 'failure' || c.conclusion === 'cancelled' || c.conclusion === 'timed_out');
-                    const hasPending = checks.some(c => c.status === 'queued' || c.status === 'in_progress');
-                    const allSuccess = checks.length > 0 && checks.every(c => c.conclusion === 'success' || c.conclusion === 'skipped');
-
-                    let overallState = 'unknown';
-                    if (hasFailure) {
-                        overallState = 'failure';
-                    } else if (hasPending) {
-                        overallState = 'pending';
-                    } else if (allSuccess) {
-                        overallState = 'success';
-                    } else if (checks.length === 0) {
-                        overallState = 'none';
-                    }
-
-                    checkStatus = {
-                        state: overallState,
-                        checks: checks.map(c => ({
-                            name: c.name,
-                            status: c.status,
-                            conclusion: c.conclusion,
-                            detailsUrl: c.details_url || c.html_url
-                        }))
-                    };
+            const lastCommit = pr.commits.nodes[0];
+            if (lastCommit && lastCommit.commit.statusCheckRollup) {
+                const rollupState = lastCommit.commit.statusCheckRollup.state;
+                let overallState = 'unknown';
+                if (rollupState === 'SUCCESS') {
+                    overallState = 'success';
+                } else if (rollupState === 'FAILURE' || rollupState === 'ERROR') {
+                    overallState = 'failure';
+                } else if (rollupState === 'PENDING') {
+                    overallState = 'pending';
                 }
-            } catch (checkErr) {
-                console.error('Error fetching checks for PR', pr.number, checkErr);
+                checkStatus = { state: overallState, checks: [] };
+            } else {
+                checkStatus = { state: 'none', checks: [] };
             }
 
             return {
@@ -689,18 +701,18 @@ export async function handleGetUserSubmissions(request, env) {
                 title: pr.title,
                 emojiName: emojiInfo.emojiName,
                 folder: emojiInfo.folder,
-                imageUrl: finalImageUrl,
-                htmlUrl: pr.html_url,
-                createdAt: pr.created_at,
-                state: pr.state,
-                merged: pr.merged_at !== null,
-                labels: pr.labels.map(label => ({
+                imageUrl: imageUrl,
+                htmlUrl: pr.url,
+                createdAt: pr.createdAt,
+                state: pr.state.toLowerCase(),
+                merged: pr.merged,
+                labels: pr.labels.nodes.map(label => ({
                     name: label.name,
                     color: label.color
                 })),
                 checkStatus: checkStatus
             };
-        }));
+        });
 
         // Cache the results
         submissionsCache.set(cacheKey, {
