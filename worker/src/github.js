@@ -152,6 +152,8 @@ export async function handleEmojiSubmission(request, env) {
         });
     }
 
+    console.log(`Emoji submission request from user: ${authPayload.username}`);
+
     // Check rate limit
     const rateLimitResult = checkRateLimit(authPayload.discordId);
     if (!rateLimitResult.allowed) {
@@ -550,6 +552,8 @@ export async function handleGetUserSubmissions(request, env) {
         });
     }
 
+    console.log(`Get submissions request from user: ${authPayload.username}`);
+
     // Get the state query parameter (default to 'open' for backwards compatibility)
     const url = new URL(request.url);
     const stateParam = url.searchParams.get('state') || 'open';
@@ -742,6 +746,8 @@ export async function handleUpdateSubmission(request, env, prNumber) {
             headers: { 'Content-Type': 'application/json' }
         });
     }
+
+    console.log(`Update submission request from user: ${authPayload.username} for PR #${prNumber}`);
 
     const headers = {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
@@ -1035,6 +1041,8 @@ export async function handleCloseSubmission(request, env, prNumber) {
             headers: { 'Content-Type': 'application/json' }
         });
     }
+
+    console.log(`Close submission request from user: ${authPayload.username} for PR #${prNumber}`);
 
     const headers = {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
