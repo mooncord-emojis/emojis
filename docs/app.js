@@ -87,7 +87,7 @@ let userSubmissions = [];
 let editingSubmission = null;
 let closingSubmission = null;
 let submissionsPollingInterval = null;
-const POLLING_INTERVAL_MS = 5000;
+const POLLING_INTERVAL_MS = 30000; // 30 seconds
 
 // Folder cache key for localStorage
 const FOLDER_CACHE_KEY = 'cachedFolders';

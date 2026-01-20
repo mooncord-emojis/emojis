@@ -5,6 +5,11 @@ const REPO_OWNER = 'mooncord-emojis';
 const REPO_NAME = 'emojis';
 const BASE_BRANCH = 'ratbranch';
 
+// Encode a file path for use in URLs, preserving slashes but encoding spaces and special characters
+function encodeFilePath(path) {
+    return path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+}
+
 // Folders to exclude from the dropdown
 const EXCLUDED_FOLDERS = [
     '.github',
@@ -14,7 +19,11 @@ const EXCLUDED_FOLDERS = [
 // Cache for folder list (refreshed periodically)
 let cachedFolders = null;
 let cacheTimestamp = 0;
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
+
+// Cache for user submissions (keyed by username:state)
+const submissionsCache = new Map();
+const SUBMISSIONS_CACHE_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 
 // Fetch folders from the repository
 async function fetchFoldersFromRepo(githubToken) {
@@ -387,7 +396,7 @@ async function createPullRequest(githubToken, emojiName, targetFolder, imageData
     }
 
     // 7. Create pull request
-    const imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeURIComponent(targetFolder)}/${emojiName}.${fileExtension}`;
+    const imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeFilePath(targetFolder)}/${encodeURIComponent(emojiName)}.${fileExtension}`;
     const prBody = `## ${updateExisting ? 'Emoji Update' : 'New Emoji Submission'}
 
 **Emoji Name:** \`${emojiName}\`
@@ -495,7 +504,7 @@ async function getImageFilePathFromBranch(headers, branchName, emojiName, folder
 
 // Build an image URL with cache-busting sha parameter
 function buildImageUrlWithSha(branchName, filePath, sha) {
-    const baseUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${filePath}`;
+    const baseUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeFilePath(filePath)}`;
     return `${baseUrl}?sha=${sha}`;
 }
 
@@ -537,16 +546,27 @@ export async function handleGetUserSubmissions(request, env) {
         });
     }
 
+    // Get the state query parameter (default to 'open' for backwards compatibility)
+    const url = new URL(request.url);
+    const stateParam = url.searchParams.get('state') || 'open';
+    const prState = stateParam === 'all' ? 'all' : stateParam;
+
+    // Check cache first
+    const cacheKey = `${authPayload.username}:${prState}`;
+    const cachedEntry = submissionsCache.get(cacheKey);
+    const now = Date.now();
+    if (cachedEntry && (now - cachedEntry.timestamp) < SUBMISSIONS_CACHE_DURATION_MS) {
+        return new Response(JSON.stringify({ submissions: cachedEntry.data }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     const headers = {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'Mooncord-Emoji-Submission-Bot'
     };
-
-    // Get the state query parameter (default to 'open' for backwards compatibility)
-    const url = new URL(request.url);
-    const stateParam = url.searchParams.get('state') || 'open';
-    const prState = stateParam === 'all' ? 'all' : stateParam;
 
     try {
         const response = await fetch(
@@ -555,7 +575,11 @@ export async function handleGetUserSubmissions(request, env) {
         );
 
         if (!response.ok) {
-            throw new Error('Failed to fetch pull requests');
+            const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
+            const rateLimitReset = response.headers.get('x-ratelimit-reset');
+            console.error(`GitHub API error (submissions): ${response.status} ${response.statusText}`);
+            console.error(`Rate limit remaining: ${rateLimitRemaining}, resets at: ${rateLimitReset}`);
+            throw new Error(`Failed to fetch pull requests: ${response.status}`);
         }
 
         const allPrs = await response.json();
@@ -590,7 +614,7 @@ export async function handleGetUserSubmissions(request, env) {
                 // The feature branch may have been deleted, so use base branch URL
                 const filePath = await getImageFilePathFromBranch(headers, BASE_BRANCH, emojiInfo.emojiName, emojiInfo.folder);
                 if (filePath) {
-                    finalImageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BASE_BRANCH}/${filePath}`;
+                    finalImageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BASE_BRANCH}/${encodeFilePath(filePath)}`;
                 }
             } else if (isClosed) {
                 // For closed (not merged) PRs, the branch is deleted and the image is gone
@@ -678,13 +702,19 @@ export async function handleGetUserSubmissions(request, env) {
             };
         }));
 
+        // Cache the results
+        submissionsCache.set(cacheKey, {
+            data: userSubmissions,
+            timestamp: Date.now()
+        });
+
         return new Response(JSON.stringify({ submissions: userSubmissions }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
-        console.error('Error fetching submissions:', error);
-        return new Response(JSON.stringify({ error: 'Failed to fetch submissions' }), {
+        console.error('Error fetching submissions:', error.message, error.stack);
+        return new Response(JSON.stringify({ error: 'Failed to fetch submissions: ' + error.message }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
         });
@@ -945,7 +975,7 @@ export async function handleUpdateSubmission(request, env, prNumber) {
 
         // Update PR title and body if name or folder changed
         if (newName || newFolder) {
-            const imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeURIComponent(finalFolder)}/${finalName}.${finalExtension}`;
+            const imageUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branchName}/${encodeFilePath(finalFolder)}/${encodeURIComponent(finalName)}.${finalExtension}`;
             const prBody = `## Emoji Submission
 
 **Emoji Name:** \`${finalName}\`
