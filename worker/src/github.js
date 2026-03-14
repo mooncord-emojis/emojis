@@ -154,6 +154,17 @@ export async function handleEmojiSubmission(request, env) {
 
     console.log(`Emoji submission request from user: ${authPayload.username}`);
 
+    // Check if user is blocked
+    const blockedEntry = await env.BLOCKLIST.get(`blocked:${authPayload.discordId}`);
+    if (blockedEntry !== null) {
+        return new Response(JSON.stringify({
+            error: 'You have been banned from submitting emojis. You know what you did.'
+        }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     // Check rate limit
     const rateLimitResult = checkRateLimit(authPayload.discordId);
     if (!rateLimitResult.allowed) {

@@ -13,3 +13,7 @@ compatibility_date = "2024-01-01"
 [vars]
 # Non-secret environment variables can go here
 # FRONTEND_URL = "https://cman85.github.io/mooncord-emojis"
+
+[[kv_namespaces]]
+binding = "BLOCKLIST"
+id = "b5aa34cacdf747f1b7777d93990863af"
